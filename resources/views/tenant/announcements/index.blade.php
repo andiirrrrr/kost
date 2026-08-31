@@ -1,0 +1,4 @@
+@extends('layouts.tenant', ['title' => 'Pengumuman'])
+@section('content')
+<div class="flex flex-col gap-6"><div><p class="text-sm font-semibold text-amber-700">Informasi Kost</p><h1 class="text-2xl font-bold">Pengumuman</h1></div><div class="grid gap-4">@forelse($announcements as $announcement)<article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"><p class="text-xs font-semibold uppercase tracking-wider text-slate-400">{{ $announcement->published_at?->locale('id')->translatedFormat('d F Y') }}</p><h2 class="mt-2 text-xl font-bold">{{ $announcement->title }}</h2><p class="mt-4 whitespace-pre-line text-sm leading-7 text-slate-600">{{ $announcement->content }}</p></article>@empty<div class="rounded-3xl border border-dashed border-slate-300 bg-white py-14 text-center"><p class="font-semibold">Belum ada pengumuman.</p></div>@endforelse</div>{{ $announcements->links() }}</div>
+@endsection

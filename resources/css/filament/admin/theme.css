@@ -1,0 +1,183 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+@layer base {
+    body {
+        font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    }
+}
+
+@layer components {
+    .fi-simple-layout {
+        position: relative;
+        overflow: hidden;
+        background: #f9f9f7;
+    }
+
+    .fi-simple-layout::before,
+    .fi-simple-layout::after {
+        position: fixed;
+        content: '';
+        pointer-events: none;
+        border-radius: 9999px;
+    }
+
+    .fi-simple-layout::before {
+        top: -16rem;
+        left: -14rem;
+        width: 38rem;
+        height: 38rem;
+        background: rgb(3 22 54 / 8%);
+        box-shadow: 12rem 2rem 0 rgb(3 22 54 / 3%);
+    }
+
+    .fi-simple-layout::after {
+        right: -18rem;
+        bottom: -22rem;
+        width: 44rem;
+        height: 44rem;
+        border-radius: 8rem;
+        background: rgb(233 193 118 / 12%);
+        transform: rotate(45deg);
+    }
+
+    .fi-simple-main {
+        position: relative;
+        z-index: 1;
+        max-width: 28rem;
+    }
+
+    .fi-simple-page-content {
+        gap: 0;
+        background: transparent;
+        padding: 0;
+        box-shadow: none;
+    }
+
+    .admin-login-brand {
+        display: flex;
+        margin-bottom: 1.5rem;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        color: #031636;
+        font-weight: 600;
+    }
+
+    .admin-login-brand .fi-icon {
+        width: 1.75rem;
+        height: 1.75rem;
+    }
+
+    .admin-login-card {
+        overflow: hidden;
+        border: 1px solid rgb(197 198 207 / 45%);
+        border-radius: 0.75rem;
+        background: #fff;
+        box-shadow: 0 10px 35px rgb(3 22 54 / 8%);
+    }
+
+    .admin-login-card-body {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+        padding: 2rem;
+    }
+
+    .admin-login-header {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        text-align: left;
+    }
+
+    .admin-login-icon {
+        display: flex;
+        width: 3.25rem;
+        height: 3.25rem;
+        margin-bottom: 0.25rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.75rem;
+        background: rgb(3 22 54 / 10%);
+        color: #031636;
+    }
+
+    .admin-login-icon .fi-icon {
+        width: 1.75rem;
+        height: 1.75rem;
+    }
+
+    .admin-login-header h1 {
+        color: #1a1c1b;
+        font-size: 1.875rem;
+        font-weight: 600;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+    }
+
+    .admin-login-header p {
+        color: #44474e;
+        line-height: 1.5;
+    }
+
+    .admin-login-security {
+        display: flex;
+        margin-top: 1.75rem;
+        align-items: center;
+        justify-content: center;
+        gap: 0.625rem;
+        color: rgb(68 71 78 / 70%);
+        font-size: 0.8125rem;
+        font-weight: 600;
+    }
+
+    .admin-login-security .fi-icon {
+        width: 1.25rem;
+        height: 1.25rem;
+        flex-shrink: 0;
+        color: #44474e;
+    }
+
+    .admin-login-footer {
+        border-top: 1px solid rgb(197 198 207 / 45%);
+        padding: 1.25rem 2rem;
+        text-align: center;
+        font-size: 0.8125rem;
+        line-height: 1.5;
+        color: #44474e;
+    }
+
+    .admin-login-footer a {
+        font-weight: 600;
+        color: #031636;
+    }
+
+    .admin-login-card .fi-input-wrp {
+        border-color: transparent;
+        border-radius: 0.5rem;
+        background: #f4f4f2;
+        box-shadow: none;
+    }
+
+    .admin-login-card .fi-input-wrp:focus-within {
+        border-color: rgb(3 22 54 / 30%);
+        background: #fff;
+        box-shadow: 0 0 0 4px rgb(3 22 54 / 5%);
+    }
+
+    .admin-login-card .fi-input-wrp-input {
+        min-height: 3rem;
+    }
+
+    .fi-btn.fi-color-primary {
+        background: #031636;
+    }
+
+    .fi-btn.fi-color-primary:hover {
+        background: #1a2b4c;
+    }
+}

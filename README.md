@@ -5,9 +5,12 @@ Aplikasi manajemen kost berbasis Laravel dan Filament untuk mengelola kamar, pen
 ## Status Pengembangan
 
 - Phase 1 — Foundation: selesai.
-- Phase 2 — Finance Core: invoices dan payments tersedia; expenses dan laporan keuangan belum dikerjakan.
+- Phase 2 — Finance Core: invoices, payments, expenses, dashboard keuangan, dan laporan dasar selesai.
 - Phase 2.5 — Stabilization & Hardening: authorization, integritas pembayaran, test, dan keamanan seeder diterapkan.
-- Phase 3 dan seterusnya: belum dikerjakan.
+- Phase 3 — WhatsApp Integration: WhatsApp Center, template, broadcast queue, dan delivery log selesai.
+- Phase 4 — Automation & Webhook: invoice bulanan, status terlambat, reminder terjadwal, serta webhook status WhatsApp selesai.
+- Phase 4.5 — Tenant Portal: landing page, autentikasi penghuni, tagihan, pembayaran, notifikasi, pengumuman, dan profil selesai.
+- Phase 5 dan seterusnya: belum dikerjakan.
 
 ## Stack dan Persyaratan
 
@@ -50,18 +53,29 @@ Seeder bersifat idempotent sehingga aman dijalankan kembali. Seeder tidak mengha
 
 ## Akun Development
 
-- URL: `/admin`
-- Email: `admin@kost.test`
-- Password awal: `password`
+- Owner: `admin@kost.test`, masuk melalui `/admin`.
+- Tenant: `tenant@kost.test`, terhubung ke Budi Santoso kamar A1 dan masuk melalui `/login`.
+- Password acak yang aman ditampilkan satu kali ketika akun pertama kali dibuat oleh seeder.
+- Untuk kredensial tetap di lingkungan lokal, isi `DEMO_OWNER_PASSWORD` dan `DEMO_TENANT_PASSWORD` pada `.env` sebelum menjalankan seeder.
 
-Ganti password sebelum aplikasi dapat diakses di luar lingkungan lokal. Menjalankan seeder kembali tidak akan mereset password akun yang sudah ada.
+Menjalankan seeder kembali tidak akan mereset password acak akun yang sudah ada. Jangan gunakan data atau kredensial demo pada production.
 
 ## Role dan Permission
 
-- `admin`: satu akun pengelola dengan seluruh akses modul Rooms, Tenants, Invoices, dan Payments.
-- `public`: role untuk banyak akun pengguna pada pengembangan berikutnya dan tidak memiliki akses ke panel `/admin`.
+- `owner`: dapat mengakses panel `/admin` dan seluruh fitur pengelolaan.
+- `tenant`: hanya dapat mengakses portal penghuni dan data yang terhubung dengan profil tenant miliknya.
+- `public`: role kompatibilitas tanpa akses panel admin maupun portal penghuni.
 
 Authorization diterapkan melalui Laravel policies. Pembatasan tidak hanya dilakukan dengan menyembunyikan menu Filament.
+
+## Tenant Portal
+
+- Landing page publik: `/`
+- Login penghuni: `/login`
+- Dashboard penghuni: `/dashboard`
+- Admin membuat akun login melalui action **Buat Akun Penghuni** pada resource Penghuni.
+- Bukti pembayaran disimpan pada disk private dan hanya dapat diunduh melalui endpoint yang memeriksa kepemilikan atau permission admin.
+- Nominal pembayaran selalu diambil dari total invoice oleh backend; tenant tidak dapat mengubahnya.
 
 ## Integritas Keuangan
 
@@ -71,6 +85,14 @@ Authorization diterapkan melalui Laravel policies. Pembatasan tidak hanya dilaku
 - Invoice hanya menjadi `paid` setelah payment terverifikasi dibuat atau diverifikasi.
 - Verifikasi payment memvalidasi invoice, penghuni, status, dan nominal dalam database transaction.
 - Invoice dan payment yang memiliki riwayat penting tidak dapat dihapus sembarangan.
+- Pengeluaran menggunakan soft delete agar histori finansial tetap dapat dipulihkan.
+- Bukti pengeluaran disimpan melalui Laravel Storage dengan nama file acak berbasis UUID.
+
+## Dashboard Keuangan
+
+Dashboard admin menampilkan okupansi kamar, total tagihan, pembayaran terverifikasi, tagihan outstanding dan terlambat, pengeluaran, serta estimasi bersih bulan berjalan. Chart membandingkan pemasukan, pengeluaran, dan estimasi bersih selama 12 bulan serta distribusi status invoice bulan ini.
+
+Estimasi Bersih adalah pemasukan terverifikasi dikurangi pengeluaran tercatat dan bukan profit accounting resmi.
 
 ## Development
 
@@ -98,11 +120,44 @@ Untuk server production, tambahkan satu cron entry Laravel:
 * * * * * cd /path/to/kost && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-Pada Windows development, gunakan `php artisan schedule:work`. Otomasi invoice/reminder WhatsApp belum diaktifkan pada phase saat ini.
+Pada Windows development, gunakan `php artisan schedule:work`.
+
+Scheduler menjalankan:
+
+- pembuatan invoice bulanan setiap tanggal 1 pukul 00:05;
+- pembaruan status invoice terlambat setiap hari pukul 00:10;
+- reminder WhatsApp setiap hari pukul 08:00.
+
+Semua waktu mengikuti `APP_TIMEZONE`. Pembuatan invoice otomatis aktif secara default. Reminder otomatis dinonaktifkan secara default dan menggunakan pengaturan `automatic_reminder_enabled`, `reminder_before_days`, `reminder_due_date_enabled`, serta `reminder_after_days` pada tabel `settings`. Task dilindungi dari eksekusi tumpang tindih dan hanya dijalankan oleh satu scheduler server.
 
 ## WhatsApp
 
-Integrasi WhatsApp Cloud API, broadcast, queue pengiriman, webhook, dan delivery log merupakan scope Phase 3–4 dan belum diimplementasikan. Jangan menambahkan token WhatsApp ke source code atau repository.
+Integrasi menggunakan WhatsApp Business Cloud API resmi Meta. Isi konfigurasi berikut pada `.env`:
+
+```dotenv
+WHATSAPP_ENABLED=true
+WHATSAPP_API_URL=https://graph.facebook.com
+WHATSAPP_API_VERSION=v23.0
+WHATSAPP_PHONE_NUMBER_ID=
+WHATSAPP_BUSINESS_ACCOUNT_ID=
+WHATSAPP_ACCESS_TOKEN=
+WHATSAPP_APP_SECRET=
+WHATSAPP_VERIFY_TOKEN=
+WHATSAPP_TIMEOUT=10
+WHATSAPP_CONNECT_TIMEOUT=5
+```
+
+Nama template di menu **Template WhatsApp** harus sama dengan template yang telah disetujui di WhatsApp Manager Meta. Seeder menyediakan lima struktur template awal untuk tagihan, reminder, keterlambatan, pembayaran, dan pengumuman; approval template tetap dilakukan melalui Meta.
+
+Broadcast tidak dikirim dalam request browser. Sistem membuat satu log dan satu queued job untuk setiap nomor valid. Jalankan worker:
+
+```bash
+php artisan queue:work --tries=3 --timeout=60
+```
+
+Daftarkan URL callback `/webhooks/whatsapp` di Meta WhatsApp Manager menggunakan nilai `WHATSAPP_VERIFY_TOKEN` yang sama. Request event diverifikasi menggunakan signature `X-Hub-Signature-256` dan `WHATSAPP_APP_SECRET`. Webhook memperbarui status menjadi `sent`, `delivered`, `read`, atau `failed` berdasarkan `message_id`, serta mengabaikan event lama yang dapat menurunkan status pesan.
+
+Access token hanya dibaca dari konfigurasi, tidak ditampilkan di panel, dan tidak dicatat dalam log.
 
 ## Testing dan Quality Check
 
