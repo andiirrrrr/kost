@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\TenantStatus;
 use App\Models\Room;
 use App\Models\Tenant;
+use App\Models\TenantRoomHistory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -12,6 +13,16 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TenantFactory extends Factory
 {
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Tenant $tenant): void {
+            TenantRoomHistory::query()->firstOrCreate(
+                ['tenant_id' => $tenant->id, 'starts_at' => $tenant->move_in_date->toDateString()],
+                ['room_id' => $tenant->room_id, 'ends_at' => $tenant->move_out_date?->toDateString(), 'monthly_price' => (int) $tenant->monthly_price, 'due_day' => $tenant->move_in_date->day],
+            );
+        });
+    }
+
     /**
      * Define the model's default state.
      *

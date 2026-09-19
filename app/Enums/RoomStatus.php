@@ -8,6 +8,7 @@ use Filament\Support\Contracts\HasLabel;
 enum RoomStatus: string implements HasColor, HasLabel
 {
     case AVAILABLE = 'available';
+    case RESERVED = 'reserved';
     case OCCUPIED = 'occupied';
     case MAINTENANCE = 'maintenance';
 
@@ -15,6 +16,7 @@ enum RoomStatus: string implements HasColor, HasLabel
     {
         return match ($this) {
             self::AVAILABLE => 'Tersedia',
+            self::RESERVED => 'Dipesan',
             self::OCCUPIED => 'Terisi',
             self::MAINTENANCE => 'Perawatan',
         };
@@ -29,6 +31,7 @@ enum RoomStatus: string implements HasColor, HasLabel
     {
         return match ($this) {
             self::AVAILABLE => 'success',
+            self::RESERVED => 'warning',
             self::OCCUPIED => 'info',
             self::MAINTENANCE => 'warning',
         };

@@ -39,6 +39,20 @@ class AnnouncementPortalTest extends TestCase
         $this->assertSame(0, $inactiveUser->notifications()->count());
     }
 
+    public function test_dispatching_announcement_notifies_tenants_immediately(): void
+    {
+        $activeUser = $this->tenantUser();
+        $announcement = Announcement::factory()->create(['title' => 'Gotong Royong', 'is_active' => true]);
+
+        NotifyTenantsOfAnnouncement::dispatchSync($announcement->id);
+
+        $notification = $activeUser->notifications()->latest()->first();
+        $this->assertNotNull($notification);
+        $this->assertSame('Pengumuman baru', $notification->data['title']);
+        $this->assertSame('Gotong Royong', $notification->data['message']);
+        $this->assertSame(route('tenant.announcements.index'), $notification->data['url']);
+    }
+
     private function tenantUser(string $status = 'active'): User
     {
         Role::findOrCreate('tenant', 'web');

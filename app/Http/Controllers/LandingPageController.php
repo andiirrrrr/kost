@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RoomStatus;
-use App\Models\Room;
+use App\Models\RoomCategory;
 use App\Services\LandingPageService;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -13,11 +13,21 @@ class LandingPageController extends Controller
 {
     public function __invoke(LandingPageService $landingPage): View
     {
-        $rooms = Schema::hasTable('rooms')
-            ? Room::query()
-                ->whereIn('status', [RoomStatus::AVAILABLE, RoomStatus::OCCUPIED])
-                ->orderBy('status')
-                ->orderBy('room_number')
+        $listedRoomStatuses = [RoomStatus::AVAILABLE, RoomStatus::OCCUPIED];
+        $roomCategories = Schema::hasTable('room_categories')
+            ? RoomCategory::query()
+                ->where('is_active', true)
+                ->whereHas('rooms', fn ($query) => $query->whereIn('status', $listedRoomStatuses))
+                ->with(['rooms' => fn ($query) => $query
+                    ->select(['id', 'room_category_id', 'monthly_price', 'status'])
+                    ->whereIn('status', $listedRoomStatuses)
+                    ->orderBy('room_number')])
+                ->withCount([
+                    'rooms as available_rooms_count' => fn ($query) => $query->where('status', RoomStatus::AVAILABLE),
+                    'rooms as listed_rooms_count' => fn ($query) => $query->whereIn('status', $listedRoomStatuses),
+                ])
+                ->orderBy('sort_order')
+                ->orderBy('name')
                 ->limit(6)
                 ->get()
             : collect();
@@ -29,6 +39,8 @@ class LandingPageController extends Controller
                 : null;
         }
 
-        return view('welcome', compact('rooms', 'settings'));
+        $settings['maps_embed_url'] = $settings['maps_embed_url'] ?? null;
+
+        return view('welcome', compact('roomCategories', 'settings'));
     }
 }

@@ -3,14 +3,17 @@
 namespace App\Filament\Admin\Pages;
 
 use App\Services\LandingPageService;
+use BackedEnum;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 
 class LandingPageSettings extends Page
 {
@@ -18,7 +21,9 @@ class LandingPageSettings extends Page
 
     protected static ?string $navigationLabel = 'Landing Page';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Website';
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedGlobeAlt;
+
+    protected static string|\UnitEnum|null $navigationGroup = 'Pengaturan Website';
 
     protected static ?int $navigationSort = 1;
 
@@ -29,11 +34,6 @@ class LandingPageSettings extends Page
     /** @var array<string, mixed>|null */
     public ?array $data = [];
 
-    public static function getNavigationIcon(): string
-    {
-        return 'heroicon-o-globe-alt';
-    }
-
     public static function canAccess(): bool
     {
         return auth()->user()?->hasRole('owner') ?? false;
@@ -43,7 +43,22 @@ class LandingPageSettings extends Page
     {
         abort_unless(static::canAccess(), 403);
 
-        $this->form->fill($landingPage->get());
+        $data = $landingPage->get();
+        if (isset($data['landmarks']) && is_array($data['landmarks'])) {
+            $data['landmarks'] = collect($data['landmarks'])
+                ->map(function (array $item) use ($landingPage): array {
+                    $label = (string) ($item['label'] ?? '');
+                    $detected = $landingPage->detectLandmarkIconByKeywords($label);
+                    if (($item['icon'] ?? '') === $detected || empty($item['icon'])) {
+                        $item['icon'] = 'auto';
+                    }
+
+                    return $item;
+                })
+                ->all();
+        }
+
+        $this->form->fill($data);
     }
 
     public function form(Schema $schema): Schema
@@ -52,7 +67,10 @@ class LandingPageSettings extends Page
             ->components([
                 Section::make('Identitas & Hero')
                     ->description('Konten utama yang pertama kali dilihat pengunjung.')
-                    ->columns(2)
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                    ])
                     ->schema([
                         TextInput::make('business_name')->label('Nama Properti')->required()->maxLength(100),
                         TextInput::make('hero_eyebrow')->label('Label Hero')->required()->maxLength(100),
@@ -64,10 +82,8 @@ class LandingPageSettings extends Page
                         Repeater::make('hero_benefits')
                             ->label('Poin Singkat Hero')
                             ->schema([
-                                TextInput::make('icon')->label('Ikon Material')->required()->maxLength(50),
                                 TextInput::make('label')->label('Teks')->required()->maxLength(100),
                             ])
-                            ->columns(2)
                             ->minItems(1)
                             ->maxItems(4)
                             ->addActionLabel('Tambah poin')
@@ -78,17 +94,22 @@ class LandingPageSettings extends Page
                         Repeater::make('advantages')
                             ->hiddenLabel()
                             ->schema([
-                                TextInput::make('icon')->label('Ikon Material')->required()->maxLength(50),
                                 TextInput::make('title')->label('Judul')->required()->maxLength(100),
                                 Textarea::make('description')->label('Deskripsi')->required()->rows(2)->maxLength(300)->columnSpanFull(),
                             ])
-                            ->columns(2)
+                            ->columns([
+                                'default' => 1,
+                                'md' => 2,
+                            ])
                             ->minItems(1)
                             ->maxItems(6)
                             ->addActionLabel('Tambah keunggulan'),
                     ]),
                 Section::make('Tentang Kami')
-                    ->columns(2)
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                    ])
                     ->schema([
                         TextInput::make('about_title')->label('Judul')->required()->maxLength(150),
                         Textarea::make('about_description')->label('Ringkasan')->required()->rows(3)->maxLength(500),
@@ -104,20 +125,83 @@ class LandingPageSettings extends Page
                             ->columnSpanFull(),
                     ]),
                 Section::make('Lokasi & Kontak')
-                    ->columns(2)
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                    ])
                     ->schema([
-                        Textarea::make('address')->label('Alamat')->required()->rows(3)->maxLength(500),
-                        TextInput::make('map_url')->label('Tautan Google Maps')->url()->maxLength(500),
-                        TextInput::make('contact_phone')->label('Nomor WhatsApp')->tel()->required()->maxLength(30),
+                        Textarea::make('address')
+                            ->label('Alamat')
+                            ->required()
+                            ->rows(3)
+                            ->maxLength(500),
+                        TextInput::make('map_url')
+                            ->label('Tautan Google Maps')
+                            ->helperText('Tautan langsung saat tombol "Buka di Google Maps" diklik.')
+                            ->url()
+                            ->maxLength(500),
+                        Textarea::make('maps_iframe')
+                            ->label('Kode Embed Google Maps (iFrame)')
+                            ->helperText('Salin kode sematan dari Google Maps (Bagikan > Sematkan peta) lalu tempel kode <iframe> di sini untuk menampilkan peta interaktif di landing page.')
+                            ->placeholder('<iframe src="https://www.google.com/maps/embed?..." width="600" height="450" style="border:0;" allowfullscreen="" loading="lazy"></iframe>')
+                            ->rows(4)
+                            ->maxLength(3000)
+                            ->rule(function () {
+                                return function (string $attribute, mixed $value, \Closure $fail): void {
+                                    if (blank($value)) {
+                                        return;
+                                    }
+
+                                    $service = app(LandingPageService::class);
+                                    if (! $service->extractMapsEmbedUrl($value)) {
+                                        $fail('Kode embed harus berupa kode <iframe> Google Maps yang valid atau URL embed Google Maps.');
+                                    }
+                                };
+                            })
+                            ->columnSpanFull(),
+                        TextInput::make('contact_phone')
+                            ->label('Nomor WhatsApp')
+                            ->helperText('Tersinkronisasi otomatis dengan nomor WhatsApp pada Profil Saya.')
+                            ->tel()
+                            ->required()
+                            ->maxLength(30),
                         TextInput::make('contact_email')->label('Email')->email()->required()->maxLength(150),
                         TextInput::make('operating_hours')->label('Jam Operasional')->required()->maxLength(100)->columnSpanFull(),
                         Repeater::make('landmarks')
                             ->label('Landmark Terdekat')
                             ->schema([
-                                TextInput::make('icon')->label('Ikon Material')->required()->maxLength(50),
-                                TextInput::make('label')->label('Keterangan')->required()->maxLength(150),
+                                TextInput::make('label')
+                                    ->label('Keterangan Landmark')
+                                    ->placeholder('Contoh: 5 menit ke Stasiun MRT / Kampus / Rumah Sakit')
+                                    ->helperText('Ikon akan menyesuaikan secara otomatis sesuai nama/keterangan yang Anda tulis.')
+                                    ->required()
+                                    ->maxLength(150),
+                                Select::make('icon')
+                                    ->label('Pilihan Ikon')
+                                    ->options([
+                                        'auto' => 'Otomatis (Sesuai Keterangan)',
+                                        'directions_bus' => 'Bus / Halte / Transportasi Umum',
+                                        'train' => 'Kereta / KRL / MRT / LRT / Stasiun',
+                                        'school' => 'Kampus / Sekolah / Universitas',
+                                        'business' => 'Pusat Bisnis / Perkantoran',
+                                        'restaurant' => 'Restoran / Kuliner / Kafe',
+                                        'shopping_bag' => 'Mall / Pusat Perbelanjaan',
+                                        'storefront' => 'Minimarket / Supermarket / Pasar',
+                                        'local_hospital' => 'Rumah Sakit / Klinik / Apotek',
+                                        'add_road' => 'Gerbang Tol / Akses Tol',
+                                        'flight' => 'Bandara / Airport',
+                                        'fitness_center' => 'Gym / Fasilitas Olahraga',
+                                        'park' => 'Taman / Ruang Terbuka Hijau',
+                                        'local_atm' => 'ATM / Bank',
+                                        'place_of_worship' => 'Tempat Ibadah (Masjid / Gereja)',
+                                        'location_on' => 'Pin Lokasi Peta',
+                                    ])
+                                    ->default('auto'),
                             ])
-                            ->columns(2)
+                            ->columns([
+                                'default' => 1,
+                                'md' => 2,
+                            ])
                             ->maxItems(6)
                             ->addActionLabel('Tambah landmark')
                             ->columnSpanFull(),

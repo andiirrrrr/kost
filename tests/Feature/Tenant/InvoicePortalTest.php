@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Tenant;
 
+use App\Enums\PaymentStatus;
 use App\Models\Invoice;
+use App\Models\Payment;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -30,6 +32,37 @@ class InvoicePortalTest extends TestCase
         $otherInvoice = Invoice::factory()->create();
 
         $this->actingAs($user)->get(route('tenant.invoices.show', $otherInvoice))->assertNotFound();
+    }
+
+    public function test_detail_shows_receipt_link_for_verified_payment(): void
+    {
+        [$user, $tenant] = $this->tenantIdentity();
+        $invoice = Invoice::factory()->for($tenant)->create(['room_id' => $tenant->room_id]);
+        $payment = Payment::factory()->for($invoice)->create([
+            'tenant_id' => $tenant->id,
+            'status' => PaymentStatus::VERIFIED,
+        ]);
+
+        $response = $this->actingAs($user)->get(route('tenant.invoices.show', $invoice));
+
+        $response->assertOk()
+            ->assertSeeText('Unduh Kwitansi')
+            ->assertSee(route('payments.receipt', $payment), false);
+    }
+
+    public function test_detail_does_not_show_receipt_link_before_payment_is_verified(): void
+    {
+        [$user, $tenant] = $this->tenantIdentity();
+        $invoice = Invoice::factory()->for($tenant)->create(['room_id' => $tenant->room_id]);
+        Payment::factory()->for($invoice)->create([
+            'tenant_id' => $tenant->id,
+            'status' => PaymentStatus::PENDING,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('tenant.invoices.show', $invoice))
+            ->assertOk()
+            ->assertDontSeeText('Unduh Kwitansi');
     }
 
     /** @return array{User, Tenant} */

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Tenant;
 
 use App\Enums\InvoiceStatus;
+use App\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -35,7 +36,13 @@ class InvoiceController extends Controller
     public function show(Request $request, int $invoice): View
     {
         $invoiceRecord = $request->user()->tenant->invoices()->with('payments')->findOrFail($invoice);
+        $verifiedPayment = $invoiceRecord->payments->first(
+            fn ($payment): bool => $payment->status === PaymentStatus::VERIFIED,
+        );
 
-        return view('tenant.invoices.show', ['invoice' => $invoiceRecord]);
+        return view('tenant.invoices.show', [
+            'invoice' => $invoiceRecord,
+            'verifiedPayment' => $verifiedPayment,
+        ]);
     }
 }

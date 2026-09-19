@@ -1,15 +1,20 @@
 <x-filament-panels::page>
-    <div class="mx-auto w-full max-w-[1600px] space-y-6">
+    <div class="w-full space-y-6">
         {{-- Filter --}}
         <x-filament::section
             heading="Filter Laporan"
             description="Pilih jenis laporan dan periode yang ingin ditinjau."
             icon="heroicon-o-funnel"
         >
+            @if (in_array($reportType, ['invoices', 'payments', 'tenants'], true))
+                <div class="mb-5 flex justify-end">
+                    <x-filament::button tag="a" icon="heroicon-o-arrow-down-tray" :href="route('admin.data.export', ['type' => $reportType === 'invoices' ? 'tagihan' : ($reportType === 'payments' ? 'pembayaran' : 'penghuni'), 'month' => $month, 'year' => $year, 'status' => $status])">Export sesuai filter</x-filament::button>
+                </div>
+            @endif
             <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
                 <label class="space-y-2">
                     <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Jenis Laporan</span>
-                    <select wire:model.live="reportType" class="block w-full rounded-lg border-gray-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-900">
+                    <select wire:model.live="reportType" class="kost-admin-select block w-full">
                         <option value="invoices">Tagihan</option>
                         <option value="payments">Pembayaran</option>
                         <option value="rooms">Kamar</option>
@@ -20,7 +25,7 @@
                 @if (in_array($reportType, ['invoices', 'payments'], true))
                     <label class="space-y-2">
                         <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Bulan</span>
-                        <select wire:model.live="month" class="block w-full rounded-lg border-gray-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-900">
+                        <select wire:model.live="month" class="kost-admin-select block w-full">
                             @foreach (range(1, 12) as $monthNumber)
                                 <option value="{{ $monthNumber }}">{{ \Carbon\CarbonImmutable::create(null, $monthNumber)->locale('id')->translatedFormat('F') }}</option>
                             @endforeach
@@ -29,7 +34,7 @@
 
                     <label class="space-y-2">
                         <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Tahun</span>
-                        <select wire:model.live="year" class="block w-full rounded-lg border-gray-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-900">
+                        <select wire:model.live="year" class="kost-admin-select block w-full">
                             @foreach (range(now()->year, now()->year - 5) as $yearOption)
                                 <option value="{{ $yearOption }}">{{ $yearOption }}</option>
                             @endforeach
@@ -39,7 +44,7 @@
 
                 <label class="space-y-2">
                     <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Status</span>
-                    <select wire:model.live="status" class="block w-full rounded-lg border-gray-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-gray-700 dark:bg-gray-900">
+                    <select wire:model.live="status" class="kost-admin-select block w-full">
                         <option value="">Semua Status</option>
                         @foreach ($this->statusOptions() as $value => $label)
                             <option value="{{ $value }}">{{ $label }}</option>

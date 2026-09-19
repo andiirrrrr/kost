@@ -27,6 +27,16 @@ class TenantAuthenticationTest extends TestCase
             ->assertDontSee('cdn.tailwindcss.com', false);
     }
 
+    public function test_forgot_password_page_renders_whatsapp_reset_contact(): void
+    {
+        $this->get('/lupa-password')
+            ->assertOk()
+            ->assertSee('Lupa Password Penghuni')
+            ->assertSee('Hubungi Pengelola via WhatsApp')
+            ->assertSee('password default')
+            ->assertDontSee('Kirim tautan reset');
+    }
+
     public function test_tenant_can_login_and_session_is_regenerated(): void
     {
         $user = $this->tenantUser();
@@ -75,6 +85,38 @@ class TenantAuthenticationTest extends TestCase
         $user = $this->tenantUser(TenantStatus::INACTIVE);
 
         $this->actingAs($user)->get('/dashboard')->assertForbidden();
+    }
+
+    public function test_inactive_tenant_can_return_to_login_page_and_is_logged_out(): void
+    {
+        $user = $this->tenantUser(TenantStatus::INACTIVE);
+
+        $this->actingAs($user)
+            ->get('/login')
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
+        $this->get('/login')->assertOk()->assertSee('Login Penghuni');
+    }
+
+    public function test_tenant_with_move_out_date_cannot_open_portal_even_if_status_is_active(): void
+    {
+        $user = $this->tenantUser();
+        $user->tenant->update(['move_out_date' => now()->toDateString()]);
+
+        $this->actingAs($user)->get('/dashboard')->assertForbidden();
+    }
+
+    public function test_tenant_with_future_move_in_date_cannot_login(): void
+    {
+        $user = $this->tenantUser();
+        $user->tenant->update(['move_in_date' => now()->addDay()->toDateString()]);
+
+        $this->post('/login', ['email' => $user->email, 'password' => 'secure-password'])
+            ->assertSessionHasErrors('email');
+
+        $this->assertGuest();
     }
 
     private function tenantUser(TenantStatus $status = TenantStatus::ACTIVE): User

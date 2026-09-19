@@ -14,34 +14,21 @@ class StatsOverview extends BaseWidget
 
         return [
             Stat::make('Total Kamar', $summary['total_rooms'])
-                ->description("Tingkat hunian {$summary['occupancy_rate']}%")
+                ->description("{$summary['occupied_rooms']} kamar terisi")
+                ->icon('heroicon-o-building-office-2')
                 ->color('primary'),
-            Stat::make('Kamar Terisi', $summary['occupied_rooms'])
-                ->description('Kamar yang dihuni')
-                ->color('success'),
-            Stat::make('Kamar Kosong', $summary['available_rooms'])
-                ->description('Kamar tersedia')
-                ->color('warning'),
             Stat::make('Penghuni Aktif', $summary['active_tenants'])
-                ->description('Total penghuni aktif')
-                ->color('info'),
-            Stat::make('Tagihan Bulan Ini', $this->rupiah($summary['invoice_total']))
-                ->description('Nilai seluruh tagihan periode ini')
+                ->description("Tingkat hunian {$summary['occupancy_rate']}%")
+                ->icon('heroicon-o-users')
                 ->color('primary'),
-            Stat::make('Pemasukan Bulan Ini', $this->rupiah($summary['income']))
-                ->description('Pembayaran yang telah diverifikasi')
-                ->color('success'),
             Stat::make('Belum Dibayar', $this->rupiah($summary['outstanding_total']))
-                ->description('Tagihan aktif yang belum dibayar')
-                ->color('warning'),
-            Stat::make('Tagihan Terlambat', $summary['overdue_count'])
-                ->description('Tagihan melewati jatuh tempo')
-                ->color('danger'),
-            Stat::make('Pengeluaran Bulan Ini', $this->rupiah($summary['expenses']))
-                ->description('Total pengeluaran tercatat')
-                ->color('danger'),
+                ->description("{$summary['overdue_count']} tagihan terlambat")
+                ->descriptionIcon($summary['overdue_count'] > 0 ? 'heroicon-m-exclamation-triangle' : 'heroicon-m-check-circle')
+                ->icon('heroicon-o-document-currency-dollar')
+                ->color($summary['overdue_count'] > 0 ? 'danger' : 'primary'),
             Stat::make('Estimasi Bersih', $this->rupiah($summary['estimated_net']))
                 ->description('Pemasukan dikurangi pengeluaran')
+                ->icon('heroicon-o-scale')
                 ->color($summary['estimated_net'] >= 0 ? 'success' : 'danger'),
         ];
     }

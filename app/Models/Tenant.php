@@ -13,14 +13,17 @@ class Tenant extends Model
     use HasFactory;
 
     protected $fillable = [
-        'user_id', 'room_id', 'name', 'phone', 'email', 'identity_number',
+        'user_id', 'room_id', 'scheduled_room_id', 'name', 'phone', 'email', 'identity_number', 'identity_document',
         'address', 'emergency_contact', 'move_in_date', 'move_out_date',
-        'monthly_price', 'due_day', 'status', 'notes',
+        'scheduled_transfer_date', 'monthly_price', 'due_day', 'status', 'notes',
     ];
 
     protected $casts = [
         'monthly_price' => 'decimal:2',
         'status' => TenantStatus::class,
+        'move_in_date' => 'date',
+        'move_out_date' => 'date',
+        'scheduled_transfer_date' => 'date',
     ];
 
     public function user(): BelongsTo
@@ -31,6 +34,11 @@ class Tenant extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function scheduledRoom(): BelongsTo
+    {
+        return $this->belongsTo(Room::class, 'scheduled_room_id');
     }
 
     // Auto-normalisasi nomor HP
@@ -63,5 +71,27 @@ class Tenant extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(Contract::class);
+    }
+
+    public function maintenanceRequests(): HasMany
+    {
+        return $this->hasMany(MaintenanceRequest::class);
+    }
+
+    public function roomHistories(): HasMany
+    {
+        return $this->hasMany(TenantRoomHistory::class);
+    }
+
+    public function canAccessPortal(): bool
+    {
+        return $this->status === TenantStatus::ACTIVE
+            && $this->move_out_date === null
+            && $this->move_in_date->lte(today());
     }
 }

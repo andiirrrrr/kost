@@ -123,4 +123,21 @@ class DashboardServiceTest extends TestCase
 
         $this->assertSame(['paid' => 1, 'unpaid' => 2, 'overdue' => 1], $breakdown);
     }
+
+    public function test_room_status_breakdown_returns_each_operational_state(): void
+    {
+        Room::factory()->count(3)->create(['status' => RoomStatus::OCCUPIED]);
+        Room::factory()->count(2)->create(['status' => RoomStatus::AVAILABLE]);
+        Room::factory()->create(['status' => RoomStatus::RESERVED]);
+        Room::factory()->create(['status' => RoomStatus::MAINTENANCE]);
+
+        $breakdown = app(DashboardService::class)->roomStatusBreakdown();
+
+        $this->assertSame([
+            'occupied' => 3,
+            'available' => 2,
+            'reserved' => 1,
+            'maintenance' => 1,
+        ], $breakdown);
+    }
 }

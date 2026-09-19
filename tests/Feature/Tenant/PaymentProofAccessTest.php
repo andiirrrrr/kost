@@ -15,7 +15,7 @@ class PaymentProofAccessTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_tenant_can_download_own_proof_but_receives_404_for_another_tenant(): void
+    public function test_tenant_can_preview_and_download_own_proof_but_receives_404_for_another_tenant(): void
     {
         Storage::fake('local');
         [$user, $tenant] = $this->tenantIdentity();
@@ -25,8 +25,20 @@ class PaymentProofAccessTest extends TestCase
         Storage::disk('local')->put($ownPayment->proof, 'private proof');
         Storage::disk('local')->put($otherPayment->proof, 'other private proof');
 
-        $this->actingAs($user)->get(route('tenant.payments.proof', $ownPayment))->assertOk();
+        $previewResponse = $this->actingAs($user)->get(route('tenant.payments.proof', $ownPayment));
+        $previewResponse->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('inline;', (string) $previewResponse->headers->get('Content-Disposition'));
+
+        $downloadResponse = $this->actingAs($user)->get(route('tenant.payments.proof', ['payment' => $ownPayment, 'download' => 1]));
+        $downloadResponse->assertOk();
+        $this->assertStringStartsWith('attachment;', (string) $downloadResponse->headers->get('Content-Disposition'));
+
         $this->actingAs($user)->get(route('tenant.payments.proof', $otherPayment))->assertNotFound();
+
+        $this->actingAs($user)->get(route('tenant.payments.index'))
+            ->assertSee('Lihat Bukti')
+            ->assertSee('Buka di Tab Baru')
+            ->assertSee('Unduh');
     }
 
     /** @return array{User, Tenant} */

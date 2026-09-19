@@ -5,13 +5,13 @@ namespace Database\Seeders;
 use App\Enums\BroadcastAudience;
 use App\Enums\BroadcastStatus;
 use App\Enums\InvoiceStatus;
-use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Enums\WhatsAppStatus;
 use App\Models\Announcement;
 use App\Models\Broadcast;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Models\PaymentMethod;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WhatsAppLog;
@@ -123,11 +123,14 @@ class DemoOperationalDataSeeder extends Seeder
     /** @param array<string, Invoice> $invoices */
     private function seedPayments(User $owner, array $invoices): void
     {
+        $paymentMethod = PaymentMethod::query()->where('code', 'bank_transfer')->sole();
+
         Payment::query()->updateOrCreate(['payment_number' => 'PAY-202607-0001'], [
             'invoice_id' => $invoices['budi_july']->id,
             'tenant_id' => $invoices['budi_july']->tenant_id,
             'amount' => $invoices['budi_july']->total_amount,
-            'payment_method' => PaymentMethod::BANK_TRANSFER,
+            'payment_method' => $paymentMethod->code,
+            'payment_method_id' => $paymentMethod->id,
             'paid_at' => '2026-07-04 10:00:00',
             'status' => PaymentStatus::VERIFIED,
             'notes' => 'Pembayaran demo terverifikasi.',
@@ -139,7 +142,8 @@ class DemoOperationalDataSeeder extends Seeder
             'invoice_id' => $invoices['siti_august']->id,
             'tenant_id' => $invoices['siti_august']->tenant_id,
             'amount' => $invoices['siti_august']->total_amount,
-            'payment_method' => PaymentMethod::BANK_TRANSFER,
+            'payment_method' => $paymentMethod->code,
+            'payment_method_id' => $paymentMethod->id,
             'paid_at' => '2026-08-04 14:20:00',
             'status' => PaymentStatus::PENDING,
             'notes' => 'Menunggu verifikasi pemilik.',
@@ -151,7 +155,8 @@ class DemoOperationalDataSeeder extends Seeder
             'invoice_id' => $invoices['dewi_august']->id,
             'tenant_id' => $invoices['dewi_august']->tenant_id,
             'amount' => $invoices['dewi_august']->total_amount,
-            'payment_method' => PaymentMethod::BANK_TRANSFER,
+            'payment_method' => $paymentMethod->code,
+            'payment_method_id' => $paymentMethod->id,
             'paid_at' => '2026-08-06 16:45:00',
             'status' => PaymentStatus::REJECTED,
             'rejection_reason' => 'Bukti transfer tidak terbaca.',

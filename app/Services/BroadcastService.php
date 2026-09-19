@@ -140,11 +140,11 @@ class BroadcastService
         return Invoice::query()
             ->with(['tenant.room:id,room_number'])
             ->whereIn('status', $statuses)
+            ->whereHas('tenant', fn ($query) => $query->where('status', 'active'))
             ->latest('period_year')
             ->latest('period_month')
             ->latest('id')
             ->get()
-            ->filter(fn (Invoice $invoice): bool => $invoice->tenant?->status->value === 'active')
             ->unique('tenant_id')
             ->map(fn (Invoice $invoice): array => ['tenant' => $invoice->tenant, 'invoice' => $invoice])
             ->values();

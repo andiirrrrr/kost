@@ -2,14 +2,24 @@
 
 namespace App\Models;
 
-use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 
 class Payment extends Model
 {
     use HasFactory;
+
+    protected static function booted(): void
+    {
+        static::updated(function (Payment $payment): void {
+            if ($payment->wasChanged('status')) {
+                ActivityLog::record('payment.status_changed', $payment, ['from' => $payment->getOriginal('status'), 'to' => $payment->status->value, 'verified_by' => $payment->verified_by]);
+            }
+        });
+    }
 
     protected $fillable = [
         'invoice_id',
@@ -17,6 +27,7 @@ class Payment extends Model
         'payment_number',
         'amount',
         'payment_method',
+        'payment_method_id',
         'paid_at',
         'proof',
         'status',
@@ -28,7 +39,6 @@ class Payment extends Model
 
     protected $casts = [
         'status' => PaymentStatus::class,
-        'payment_method' => PaymentMethod::class,
         'paid_at' => 'datetime',
         'verified_at' => 'datetime',
         'amount' => 'integer',
@@ -38,6 +48,11 @@ class Payment extends Model
     public function invoice()
     {
         return $this->belongsTo(Invoice::class);
+    }
+
+    public function method(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class, 'payment_method_id')->withTrashed();
     }
 
     public function tenant()
@@ -61,17 +76,20 @@ class Payment extends Model
         return $query->where('status', PaymentStatus::VERIFIED);
     }
 
-    // Generate payment number
-    public static function generatePaymentNumber()
+    // Generate payment number (concurrency-safe)
+    public static function generatePaymentNumber(): string
     {
-        $year = now()->format('Y');
-        $month = now()->format('m');
-        $last = self::whereYear('created_at', $year)
-            ->whereMonth('created_at', $month)
-            ->orderBy('id', 'desc')
-            ->first();
-        $sequence = $last ? intval(substr($last->payment_number, -4)) + 1 : 1;
+        return DB::transaction(function (): string {
+            $year = now()->format('Y');
+            $month = now()->format('m');
+            $last = self::whereYear('created_at', $year)
+                ->whereMonth('created_at', $month)
+                ->lockForUpdate()
+                ->orderBy('id', 'desc')
+                ->first();
+            $sequence = $last ? intval(substr($last->payment_number, -4)) + 1 : 1;
 
-        return sprintf('PAY-%04d%02d-%04d', $year, $month, $sequence);
+            return sprintf('PAY-%04d%02d-%04d', $year, $month, $sequence);
+        });
     }
 }

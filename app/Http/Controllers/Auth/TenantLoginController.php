@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Auth;
 
-use App\Enums\TenantStatus;
 use App\Http\Controllers\Controller;
 use App\Services\LandingPageService;
 use Illuminate\Http\RedirectResponse;
@@ -15,7 +14,17 @@ class TenantLoginController extends Controller
     public function create(Request $request, LandingPageService $landingPage): View|RedirectResponse
     {
         if ($request->user()?->hasRole('tenant')) {
-            return redirect()->route('tenant.dashboard');
+            if ($request->user()->tenant?->canAccessPortal()) {
+                return redirect()->route('tenant.dashboard');
+            }
+
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')->withErrors([
+                'email' => 'Akun penghuni tidak aktif. Silakan hubungi pengelola kost.',
+            ]);
         }
 
         if ($request->user()?->hasRole('owner')) {
@@ -47,7 +56,7 @@ class TenantLoginController extends Controller
             return redirect()->intended('/admin');
         }
 
-        if (! $user?->hasRole('tenant') || $user->tenant?->status !== TenantStatus::ACTIVE) {
+        if (! $user?->hasRole('tenant') || ! $user->tenant?->canAccessPortal()) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();

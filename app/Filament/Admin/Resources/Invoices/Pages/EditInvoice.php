@@ -3,27 +3,26 @@
 namespace App\Filament\Admin\Resources\Invoices\Pages;
 
 use App\Filament\Admin\Resources\Invoices\InvoiceResource;
-use App\Models\Invoice;
-use App\Models\Tenant;
 use App\Services\InvoiceService;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\Width;
 
 class EditInvoice extends EditRecord
 {
     protected static string $resource = InvoiceResource::class;
 
+    protected Width|string|null $maxContentWidth = Width::Full;
+
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        $data['room_id'] = Tenant::findOrFail($data['tenant_id'])->room_id;
+        $data['tenant_id'] = $this->record->tenant_id;
+        $data['tenant_room_history_id'] = $this->record->tenant_room_history_id;
+        $data['room_id'] = $this->record->room_id;
+        $data['period_month'] = $this->record->period_month;
+        $data['period_year'] = $this->record->period_year;
+        $data['base_amount'] = $this->record->base_amount;
+        $data['due_date'] = $this->record->due_date;
         $data['total_amount'] = InvoiceService::calculateTotal($data);
-
-        // Bersihkan data lama jika ada yang soft-deleted pada periode ini
-        Invoice::onlyTrashed()
-            ->where('tenant_id', $data['tenant_id'])
-            ->where('period_month', $data['period_month'])
-            ->where('period_year', $data['period_year'])
-            ->where('id', '!=', $this->record->id)
-            ->forceDelete();
 
         return $data;
     }

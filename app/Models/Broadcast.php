@@ -15,6 +15,12 @@ class Broadcast extends Model
     /** @use HasFactory<BroadcastFactory> */
     use HasFactory;
 
+    protected static function booted(): void
+    {
+        static::created(fn (Broadcast $broadcast) => ActivityLog::record('broadcast.created', $broadcast));
+        static::updated(fn (Broadcast $broadcast) => ActivityLog::record('broadcast.updated', $broadcast, ['changes' => array_keys($broadcast->getChanges())]));
+    }
+
     protected $fillable = [
         'title',
         'whatsapp_template_id',

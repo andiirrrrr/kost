@@ -10,14 +10,16 @@ use Tests\TestCase;
 
 class ScheduledAutomationTest extends TestCase
 {
-    public function test_registers_only_phase_four_automation_at_expected_times(): void
+    public function test_registers_automation_at_expected_times(): void
     {
         $events = collect(app(Schedule::class)->events());
 
-        $this->assertSame('5 0 1 * *', $this->eventFor($events, 'invoices:generate-monthly')->expression);
+        $this->assertSame('1 0 * * *', $this->eventFor($events, 'tenants:activate-scheduled-check-ins')->expression);
+        $this->assertSame('2 0 * * *', $this->eventFor($events, 'tenants:activate-scheduled-room-transfers')->expression);
+        $this->assertSame('5 0 * * *', $this->eventFor($events, 'invoices:generate-monthly')->expression);
         $this->assertSame('10 0 * * *', $this->eventFor($events, 'invoices:update-overdue')->expression);
         $this->assertSame('0 8 * * *', $this->eventFor($events, 'whatsapp:send-reminders')->expression);
-        $this->assertCount(3, $events);
+        $this->assertCount(5, $events);
     }
 
     /** @param Collection<int, Event> $events */

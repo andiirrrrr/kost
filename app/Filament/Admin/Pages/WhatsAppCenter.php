@@ -12,11 +12,19 @@ use App\Services\BroadcastService;
 use App\Services\WhatsAppService;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Filament\Support\Enums\Width;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 
 class WhatsAppCenter extends Page
 {
+    protected Width|string|null $maxContentWidth = Width::Full;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return auth()->user()?->can('whatsapp.view') ?? false;
+    }
+
     protected string $view = 'filament.admin.pages.whats-app-center';
 
     protected static ?string $navigationLabel = 'Pusat WhatsApp';

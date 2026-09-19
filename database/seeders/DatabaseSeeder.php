@@ -3,12 +3,16 @@
 namespace Database\Seeders;
 
 use App\Enums\ExpenseCategory;
+use App\Enums\PaymentMethodCategory;
 use App\Models\Expense;
+use App\Models\PaymentMethod;
 use App\Models\Room;
 use App\Models\Setting;
 use App\Models\Tenant;
+use App\Models\TenantRoomHistory;
 use App\Models\User;
 use App\Models\WhatsAppTemplate;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -66,6 +70,7 @@ class DatabaseSeeder extends Seeder
             || Hash::check('password', (string) $user->password);
 
         $user->name = 'Pemilik Kost';
+        $user->phone = $user->phone ?: '081234567890';
 
         if ($mustSetOwnerPassword) {
             $ownerPassword = $configuredOwnerPassword ?: Str::password(20);
@@ -99,6 +104,26 @@ class DatabaseSeeder extends Seeder
         ] as $key => $value) {
             Setting::set($key, $value);
         }
+
+        $bankTransfer = PaymentMethod::withTrashed()->updateOrCreate(
+            ['code' => 'bank_transfer'],
+            [
+                'name' => 'Transfer Bank',
+                'category' => PaymentMethodCategory::BANK_TRANSFER,
+                'icon' => 'account_balance',
+                'instructions' => 'Transfer sesuai nominal tagihan, lalu unggah bukti pembayaran.',
+                'account_number' => Setting::get('bank_account_number'),
+                'account_holder' => Setting::get('bank_account_holder'),
+                'is_active' => true,
+                'sort_order' => 1,
+            ],
+        );
+
+        if ($bankTransfer->trashed()) {
+            $bankTransfer->restore();
+        }
+
+        $this->call(RoomCategorySeeder::class);
 
         $rooms = collect([
             ['room_number' => 'A1', 'monthly_price' => 800000, 'status' => 'occupied'],
@@ -138,9 +163,14 @@ class DatabaseSeeder extends Seeder
             $roomNumber = $attributes['room'];
             unset($attributes['room']);
 
-            Tenant::updateOrCreate(
+            $tenant = Tenant::updateOrCreate(
                 ['phone' => $this->normalizePhone($attributes['phone'])],
-                [...$attributes, 'room_id' => $rooms[$roomNumber]->id, 'due_day' => 5, 'status' => 'active'],
+                [...$attributes, 'room_id' => $rooms[$roomNumber]->id, 'due_day' => CarbonImmutable::parse($attributes['move_in_date'])->day, 'status' => 'active'],
+            );
+
+            TenantRoomHistory::query()->firstOrCreate(
+                ['tenant_id' => $tenant->id, 'starts_at' => $tenant->move_in_date],
+                ['room_id' => $tenant->room_id, 'monthly_price' => (int) $tenant->monthly_price, 'due_day' => $tenant->move_in_date->day, 'created_by' => $user->id],
             );
         }
 

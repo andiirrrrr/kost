@@ -2,6 +2,8 @@
 
 namespace App\Policies;
 
+use App\Enums\InvoiceStatus;
+use App\Enums\PaymentStatus;
 use App\Models\Invoice;
 use App\Models\User;
 
@@ -49,7 +51,9 @@ class InvoicePolicy
 
     public function recordPayment(User $user, Invoice $invoice): bool
     {
-        return $user->can('payments.create') && ! $invoice->status->isTerminal();
+        return $user->can('payments.create')
+            && in_array($invoice->status, [InvoiceStatus::UNPAID, InvoiceStatus::OVERDUE], true)
+            && ! $invoice->payments()->where('status', PaymentStatus::PENDING)->exists();
     }
 
     public function cancel(User $user, Invoice $invoice): bool

@@ -39,4 +39,14 @@ class ResourceAuthorizationTest extends TestCase
         $this->assertFalse($publicUser->can('recordPayment', $invoice));
         $this->assertFalse($publicUser->can('generate', Invoice::class));
     }
+
+    public function test_invoice_with_payment_cannot_be_deleted(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $owner = User::query()->where('email', config('demo.owner_email'))->sole();
+        $payment = Payment::factory()->create();
+
+        $this->assertFalse($owner->can('delete', $payment->invoice));
+        $this->assertFalse($owner->can('forceDelete', $payment->invoice));
+    }
 }

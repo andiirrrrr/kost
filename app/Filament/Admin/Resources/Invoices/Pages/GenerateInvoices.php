@@ -9,12 +9,15 @@ use App\Services\InvoiceService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Page;
+use Filament\Support\Enums\Width;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 class GenerateInvoices extends Page
 {
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
+
     protected static string $resource = InvoiceResource::class;
 
     protected string $view = 'filament.admin.resources.invoices.pages.generate-invoices';
@@ -42,10 +45,9 @@ class GenerateInvoices extends Page
         $this->totalTenants = Tenant::where('status', 'active')->count();
     }
 
-    public function generate()
+    public function generate(InvoiceService $service): void
     {
         Gate::authorize('generate', Invoice::class);
-        $service = new InvoiceService;
         $result = $service->generateMonthlyInvoices(
             $this->month,
             $this->year,
@@ -77,7 +79,7 @@ class GenerateInvoices extends Page
                 ->modalHeading('Konfirmasi Pembuatan Tagihan')
                 ->modalDescription("Anda akan membuat tagihan untuk {$this->totalTenants} penghuni aktif pada periode {$this->month}/{$this->year}.")
                 ->modalSubmitActionLabel('Ya, Buat Tagihan')
-                ->action(fn () => $this->generate()),
+                ->action(fn (InvoiceService $service) => $this->generate($service)),
         ];
     }
 }

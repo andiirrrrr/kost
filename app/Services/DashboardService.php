@@ -126,6 +126,25 @@ class DashboardService
         ];
     }
 
+    /** @return array{occupied: int, available: int, reserved: int, maintenance: int} */
+    public function roomStatusBreakdown(): array
+    {
+        $totals = Room::query()
+            ->toBase()
+            ->selectRaw("sum(case when status = 'occupied' then 1 else 0 end) as occupied")
+            ->selectRaw("sum(case when status = 'available' then 1 else 0 end) as available")
+            ->selectRaw("sum(case when status = 'reserved' then 1 else 0 end) as reserved")
+            ->selectRaw("sum(case when status = 'maintenance' then 1 else 0 end) as maintenance")
+            ->first();
+
+        return [
+            'occupied' => (int) ($totals->occupied ?? 0),
+            'available' => (int) ($totals->available ?? 0),
+            'reserved' => (int) ($totals->reserved ?? 0),
+            'maintenance' => (int) ($totals->maintenance ?? 0),
+        ];
+    }
+
     /** @return Collection<string, int> */
     private function monthlyTotals(Builder $query, string $dateColumn): Collection
     {

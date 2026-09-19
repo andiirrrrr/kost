@@ -7,12 +7,14 @@ use App\Filament\Admin\Resources\Rooms\Pages\CreateRoom;
 use App\Filament\Admin\Resources\Rooms\Pages\EditRoom;
 use App\Filament\Admin\Resources\Rooms\Pages\ListRooms;
 use App\Models\Room;
+use App\Models\RoomCategory;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -25,7 +27,7 @@ class RoomResource extends Resource
 
     protected static ?string $navigationLabel = 'Kamar';
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Pengelolaan Kost';
+    protected static string|\UnitEnum|null $navigationGroup = 'Operasional';
 
     protected static ?int $navigationSort = 1;
 
@@ -44,43 +46,55 @@ class RoomResource extends Resource
     {
         return $schema
             ->schema([
-                Forms\Components\TextInput::make('room_number')
-                    ->label('Nomor Kamar')
-                    ->required()
-                    ->unique()
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('room_name')
-                    ->label('Nama Kamar')
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('type')
-                    ->label('Tipe')
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('monthly_price')
-                    ->label('Harga Bulanan')
-                    ->required()
-                    ->numeric()
-                    ->prefix('Rp'),
-                Forms\Components\Select::make('status')
-                    ->label('Status')
-                    ->options(RoomStatus::class)
-                    ->required(),
-                Forms\Components\Textarea::make('description')
-                    ->label('Deskripsi')
-                    ->columnSpanFull(),
-                Forms\Components\FileUpload::make('landing_image')
-                    ->label('Foto untuk Landing Page')
-                    ->image()
-                    ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp'])
-                    ->maxSize(4096)
-                    ->disk('public')
-                    ->directory('landing/rooms')
-                    ->visibility('public')
-                    ->columnSpanFull(),
-                Forms\Components\TagsInput::make('facilities')
-                    ->label('Fasilitas Kamar')
-                    ->placeholder('Contoh: AC')
-                    ->helperText('Tekan Enter setelah menulis setiap fasilitas.')
-                    ->columnSpanFull(),
+                Section::make('Identitas & Kategori')
+                    ->description('Tetapkan nomor dan kategori kamar sebagai informasi utama unit.')
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                    ])
+                    ->schema([
+                        Forms\Components\TextInput::make('room_number')
+                            ->label('Nomor Kamar')
+                            ->required()
+                            ->unique()
+                            ->maxLength(255),
+                        Forms\Components\Select::make('room_category_id')
+                            ->label('Kategori Kamar')
+                            ->relationship('roomCategory', 'name', modifyQueryUsing: fn ($query) => $query->where('is_active', true)->orderBy('sort_order')->orderBy('name'))
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(function ($state, callable $set): void {
+                                $category = RoomCategory::query()->find($state);
+
+                                if (! $category) {
+                                    return;
+                                }
+
+                                $set('type', $category->name);
+                                $set('monthly_price', $category->base_monthly_price);
+                            })
+                            ->helperText('Harga dasar akan diisikan otomatis. Deskripsi dan fasilitas kategori diwarisi tanpa perlu disalin.'),
+                        Forms\Components\Hidden::make('type'),
+                    ]),
+                Section::make('Harga & Status')
+                    ->description('Periksa harga bulanan dan kondisi operasional kamar.')
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                    ])
+                    ->schema([
+                        Forms\Components\TextInput::make('monthly_price')
+                            ->label('Harga Bulanan')
+                            ->required()
+                            ->numeric()
+                            ->prefix('Rp'),
+                        Forms\Components\Select::make('status')
+                            ->label('Status')
+                            ->options(RoomStatus::class)
+                            ->required(),
+                    ]),
             ]);
     }
 
@@ -91,15 +105,15 @@ class RoomResource extends Resource
                 TextColumn::make('room_number')
                     ->label('Nomor Kamar')
                     ->searchable(),
-                TextColumn::make('room_name')
-                    ->label('Nama Kamar')
-                    ->searchable(),
-                TextColumn::make('type')
-                    ->label('Tipe')
-                    ->searchable(),
+                TextColumn::make('roomCategory.name')
+                    ->label('Kategori')
+                    ->placeholder(fn (Room $record): string => $record->type ?: 'Belum dipilih')
+                    ->searchable()
+                    ->sortable(),
                 TextColumn::make('monthly_price')
                     ->label('Harga Bulanan')
                     ->money('IDR')
+                    ->alignEnd()
                     ->sortable(),
                 SelectColumn::make('status')
                     ->label('Status')
@@ -110,7 +124,11 @@ class RoomResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->stackedOnMobile()
             ->filters([
+                SelectFilter::make('room_category_id')
+                    ->label('Kategori')
+                    ->relationship('roomCategory', 'name'),
                 SelectFilter::make('status')
                     ->label('Status')
                     ->options(RoomStatus::class),

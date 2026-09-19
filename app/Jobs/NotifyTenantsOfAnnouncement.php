@@ -6,10 +6,9 @@ use App\Models\Announcement;
 use App\Models\Tenant;
 use App\Notifications\TenantActivityNotification;
 use App\Services\TenantNotificationService;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
-class NotifyTenantsOfAnnouncement implements ShouldQueue
+class NotifyTenantsOfAnnouncement
 {
     use Queueable;
 

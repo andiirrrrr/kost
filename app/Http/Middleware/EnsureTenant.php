@@ -2,7 +2,6 @@
 
 namespace App\Http\Middleware;
 
-use App\Enums\TenantStatus;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -20,7 +19,7 @@ class EnsureTenant
         $tenant = $user?->tenant;
 
         abort_unless(
-            $user?->hasRole('tenant') && $tenant?->status === TenantStatus::ACTIVE,
+            $user?->hasRole('tenant') && $tenant?->canAccessPortal(),
             Response::HTTP_FORBIDDEN,
         );
 

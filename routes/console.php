@@ -8,8 +8,18 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+Schedule::command('tenants:activate-scheduled-check-ins')
+    ->dailyAt('00:01')
+    ->withoutOverlapping(30)
+    ->onOneServer();
+
+Schedule::command('tenants:activate-scheduled-room-transfers')
+    ->dailyAt('00:02')
+    ->withoutOverlapping(30)
+    ->onOneServer();
+
 Schedule::command('invoices:generate-monthly')
-    ->monthlyOn(1, '00:05')
+    ->dailyAt('00:05')
     ->withoutOverlapping(60)
     ->onOneServer();
 

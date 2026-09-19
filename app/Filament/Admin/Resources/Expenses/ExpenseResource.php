@@ -41,7 +41,7 @@ class ExpenseResource extends Resource
 
     protected static string|\UnitEnum|null $navigationGroup = 'Keuangan';
 
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 3;
 
     protected static ?string $modelLabel = 'Pengeluaran';
 
@@ -53,7 +53,12 @@ class ExpenseResource extends Resource
     {
         return $schema->components([
             Section::make('Informasi Pengeluaran')
-                ->columns(2)
+                ->description('Catat detail transaksi, lalu lampirkan bukti untuk dokumentasi.')
+                ->columnSpanFull()
+                ->columns([
+                    'default' => 1,
+                    'md' => 2,
+                ])
                 ->schema([
                     Select::make('category')
                         ->label('Kategori')
@@ -115,6 +120,7 @@ class ExpenseResource extends Resource
                 TextColumn::make('amount')
                     ->label('Jumlah')
                     ->money('IDR')
+                    ->alignEnd()
                     ->sortable(),
                 TextColumn::make('creator.name')
                     ->label('Dicatat Oleh')
@@ -124,6 +130,7 @@ class ExpenseResource extends Resource
                     ->dateTime('d M Y H:i')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->stackedOnMobile()
             ->filters([
                 SelectFilter::make('category')
                     ->label('Kategori')

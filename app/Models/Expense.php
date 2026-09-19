@@ -14,6 +14,13 @@ class Expense extends Model
     /** @use HasFactory<ExpenseFactory> */
     use HasFactory, SoftDeletes;
 
+    protected static function booted(): void
+    {
+        static::created(fn (Expense $expense) => ActivityLog::record('expense.created', $expense, ['amount' => $expense->amount, 'category' => $expense->category->value]));
+        static::updated(fn (Expense $expense) => ActivityLog::record('expense.updated', $expense, ['changes' => array_keys($expense->getChanges())]));
+        static::deleted(fn (Expense $expense) => ActivityLog::record('expense.deleted', $expense));
+    }
+
     protected $fillable = [
         'category',
         'description',

@@ -8,12 +8,14 @@ use Filament\Support\Contracts\HasLabel;
 enum TenantStatus: string implements HasColor, HasLabel
 {
     case ACTIVE = 'active';
+    case SCHEDULED = 'scheduled';
     case INACTIVE = 'inactive';
 
     public function label(): string
     {
         return match ($this) {
             self::ACTIVE => 'Aktif',
+            self::SCHEDULED => 'Terjadwal',
             self::INACTIVE => 'Tidak Aktif',
         };
     }
@@ -27,6 +29,7 @@ enum TenantStatus: string implements HasColor, HasLabel
     {
         return match ($this) {
             self::ACTIVE => 'success',
+            self::SCHEDULED => 'warning',
             self::INACTIVE => 'gray',
         };
     }

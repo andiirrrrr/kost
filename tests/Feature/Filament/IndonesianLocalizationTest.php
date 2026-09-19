@@ -28,6 +28,7 @@ class IndonesianLocalizationTest extends TestCase
         $this->assertSame('Kamar', RoomResource::getNavigationLabel());
         $this->assertSame('Penghuni', TenantResource::getNavigationLabel());
         $this->assertSame('Tersedia', RoomStatus::AVAILABLE->getLabel());
+        $this->assertSame('Dipesan', RoomStatus::RESERVED->getLabel());
         $this->assertSame('Belum Dibayar', InvoiceStatus::UNPAID->getLabel());
         $this->assertSame('Terverifikasi', PaymentStatus::VERIFIED->getLabel());
         $this->assertSame('Konsep', BroadcastStatus::DRAFT->getLabel());

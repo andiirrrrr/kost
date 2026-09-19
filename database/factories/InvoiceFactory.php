@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Enums\InvoiceStatus;
 use App\Models\Invoice;
 use App\Models\Tenant;
+use App\Models\TenantRoomHistory;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -21,8 +22,9 @@ class InvoiceFactory extends Factory
     {
         return [
             'tenant_id' => Tenant::factory(),
+            'tenant_room_history_id' => fn (array $attributes): ?int => TenantRoomHistory::query()->where('tenant_id', $attributes['tenant_id'])->whereNull('ends_at')->value('id'),
             'room_id' => fn (array $attributes): int => Tenant::findOrFail($attributes['tenant_id'])->room_id,
-            'invoice_number' => fake()->unique()->numerify('INV-202608-####'),
+            'invoice_number' => fn () => fake()->unique()->numerify('INV-202608-9###'),
             'period_month' => 8,
             'period_year' => 2026,
             'base_amount' => 1000000,

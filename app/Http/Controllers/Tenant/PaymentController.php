@@ -11,7 +11,7 @@ class PaymentController extends Controller
     public function index(Request $request): View
     {
         $payments = $request->user()->tenant->payments()
-            ->with('invoice')
+            ->with('invoice.payments')
             ->latest('id')
             ->paginate(10);
 

@@ -5,6 +5,7 @@ namespace Tests\Feature\Services;
 use App\Models\Tenant;
 use App\Services\TenantAccountService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use InvalidArgumentException;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -34,5 +35,37 @@ class TenantAccountServiceTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
 
         app(TenantAccountService::class)->create($tenant->refresh(), 'second@example.test');
+    }
+
+    public function test_resets_password_with_custom_password(): void
+    {
+        Role::findOrCreate('tenant', 'web');
+        $tenant = Tenant::factory()->create();
+        $account = app(TenantAccountService::class)->create($tenant, 'reset-test@example.test', 'initial-password');
+
+        $result = app(TenantAccountService::class)->resetPassword($tenant->refresh(), 'new-custom-secret-123');
+
+        $this->assertSame('new-custom-secret-123', $result['password']);
+        $this->assertTrue(Hash::check('new-custom-secret-123', $account['user']->refresh()->password));
+    }
+
+    public function test_resets_password_with_auto_generated_password(): void
+    {
+        Role::findOrCreate('tenant', 'web');
+        $tenant = Tenant::factory()->create();
+        $account = app(TenantAccountService::class)->create($tenant, 'auto-reset@example.test', 'initial-password');
+
+        $result = app(TenantAccountService::class)->resetPassword($tenant->refresh());
+
+        $this->assertNotEmpty($result['password']);
+        $this->assertTrue(Hash::check($result['password'], $account['user']->refresh()->password));
+    }
+
+    public function test_rejects_reset_password_for_tenant_without_account(): void
+    {
+        $tenant = Tenant::factory()->create(['user_id' => null]);
+
+        $this->expectException(InvalidArgumentException::class);
+        app(TenantAccountService::class)->resetPassword($tenant);
     }
 }

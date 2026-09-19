@@ -25,6 +25,29 @@ class PaymentProofController extends Controller
         $paymentRecord = $query->findOrFail($payment);
         abort_unless($paymentRecord->proof && Storage::disk('local')->exists($paymentRecord->proof), 404);
 
-        return Storage::disk('local')->download($paymentRecord->proof, $paymentRecord->payment_number.'.'.pathinfo($paymentRecord->proof, PATHINFO_EXTENSION));
+        $extension = strtolower(pathinfo($paymentRecord->proof, PATHINFO_EXTENSION));
+        $contentTypes = [
+            'jpg' => 'image/jpeg',
+            'jpeg' => 'image/jpeg',
+            'png' => 'image/png',
+            'webp' => 'image/webp',
+            'pdf' => 'application/pdf',
+        ];
+        abort_unless(isset($contentTypes[$extension]), 404);
+
+        $fileName = $paymentRecord->payment_number.'.'.$extension;
+
+        if ($request->boolean('download')) {
+            return Storage::disk('local')->download($paymentRecord->proof, $fileName, [
+                'Content-Type' => $contentTypes[$extension],
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
+
+        return Storage::disk('local')->response($paymentRecord->proof, $fileName, [
+            'Content-Type' => $contentTypes[$extension],
+            'Content-Disposition' => 'inline; filename="'.$fileName.'"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 }

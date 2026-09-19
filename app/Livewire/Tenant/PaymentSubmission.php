@@ -3,12 +3,13 @@
 namespace App\Livewire\Tenant;
 
 use App\Enums\InvoiceStatus;
-use App\Enums\PaymentMethod;
+use App\Enums\PaymentMethodCategory;
 use App\Enums\PaymentStatus;
 use App\Models\Invoice;
-use App\Models\Setting;
+use App\Models\PaymentMethod;
 use App\Services\PaymentService;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Livewire\Component;
 use Livewire\WithFileUploads;
 
@@ -18,7 +19,9 @@ class PaymentSubmission extends Component
 
     public Invoice $invoice;
 
-    public string $paymentMethod = 'bank_transfer';
+    public ?int $paymentMethodId = null;
+
+    public string $paymentCategory = '';
 
     public string $paidAt = '';
 
@@ -33,6 +36,27 @@ class PaymentSubmission extends Component
 
         $this->invoice = $invoice;
         $this->paidAt = now()->format('Y-m-d\TH:i');
+        $firstCategory = collect(PaymentMethodCategory::cases())->first(
+            fn (PaymentMethodCategory $category): bool => PaymentMethod::query()
+                ->where('is_active', true)
+                ->where('category', $category)
+                ->exists(),
+        );
+        $firstMethod = $firstCategory
+            ? PaymentMethod::query()->where('is_active', true)->where('category', $firstCategory)->orderBy('sort_order')->orderBy('name')->first()
+            : null;
+        $this->paymentCategory = $firstMethod?->category->value ?? '';
+        $this->paymentMethodId = $firstMethod?->id;
+    }
+
+    public function updatedPaymentCategory(string $category): void
+    {
+        $this->paymentMethodId = PaymentMethod::query()
+            ->where('is_active', true)
+            ->where('category', $category)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->value('id');
     }
 
     public function submit(PaymentService $service): void
@@ -41,7 +65,8 @@ class PaymentSubmission extends Component
         abort_unless($this->invoice->tenant_id === $tenant->id, 404);
 
         $validated = $this->validate([
-            'paymentMethod' => ['required', 'in:bank_transfer'],
+            'paymentCategory' => ['required', Rule::enum(PaymentMethodCategory::class)],
+            'paymentMethodId' => ['required', 'integer', Rule::exists('payment_methods', 'id')->where('category', $this->paymentCategory)->where('is_active', true)->whereNull('deleted_at')],
             'paidAt' => ['required', 'date', 'before_or_equal:now'],
             'proof' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'extensions:jpg,jpeg,png,webp,pdf', 'max:5120'],
         ], [
@@ -57,7 +82,7 @@ class PaymentSubmission extends Component
             $service->submitTenantPayment(
                 $this->invoice,
                 $tenant->id,
-                PaymentMethod::from($validated['paymentMethod']),
+                PaymentMethod::query()->findOrFail($validated['paymentMethodId']),
                 $validated['paidAt'],
                 $path,
             );
@@ -72,10 +97,15 @@ class PaymentSubmission extends Component
 
     public function render()
     {
+        $allPaymentMethods = PaymentMethod::query()->where('is_active', true)->orderBy('sort_order')->orderBy('name')->get();
+        $paymentCategories = collect(PaymentMethodCategory::cases())
+            ->filter(fn (PaymentMethodCategory $category): bool => $allPaymentMethods->contains('category', $category));
+        $paymentMethods = $allPaymentMethods->where('category', $this->paymentCategory)->values();
+
         return view('livewire.tenant.payment-submission', [
-            'bankName' => Setting::get('bank_name', 'Belum diatur'),
-            'bankAccountNumber' => Setting::get('bank_account_number', 'Belum diatur'),
-            'bankAccountHolder' => Setting::get('bank_account_holder', 'Belum diatur'),
+            'paymentCategories' => $paymentCategories,
+            'paymentMethods' => $paymentMethods,
+            'selectedPaymentMethod' => $allPaymentMethods->firstWhere('id', $this->paymentMethodId),
         ]);
     }
 }

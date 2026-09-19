@@ -7,10 +7,7 @@ use App\Filament\Admin\Resources\WhatsAppTemplates\Pages\EditWhatsAppTemplate;
 use App\Filament\Admin\Resources\WhatsAppTemplates\Pages\ListWhatsAppTemplates;
 use App\Models\WhatsAppTemplate;
 use BackedEnum;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -20,11 +17,15 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
 class WhatsAppTemplateResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        return auth()->user()?->can('whatsapp.manage_templates') ?? false;
+    }
+
     protected static ?string $model = WhatsAppTemplate::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;
@@ -44,30 +45,19 @@ class WhatsAppTemplateResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema->components([
-            Section::make('Templat Meta WhatsApp')
-                ->columns(2)
+            Section::make('Isi Pesan WhatsApp')
+                ->description('Ubah nama dan contoh isi pesan. Pengaturan teknis dikelola otomatis oleh sistem.')
+                ->columns([
+                    'default' => 1,
+                    'md' => 2,
+                ])
                 ->schema([
-                    TextInput::make('display_name')->label('Nama Tampilan')->required()->maxLength(255),
+                    TextInput::make('display_name')->label('Nama Pesan')->required()->maxLength(255),
                     TextInput::make('template_name')
-                        ->label('Nama Templat Meta')
-                        ->helperText('Harus sama dengan nama templat yang telah disetujui di Meta.')
-                        ->required()
-                        ->alphaDash()
-                        ->unique(ignoreRecord: true)
-                        ->maxLength(255),
-                    Select::make('category')
-                        ->label('Kategori')
-                        ->options(['utility' => 'Layanan', 'marketing' => 'Pemasaran'])
-                        ->required()
-                        ->default('utility'),
-                    TextInput::make('language')->label('Kode Bahasa')->required()->default('id')->maxLength(10),
-                    TagsInput::make('variables')
-                        ->label('Urutan Variabel')
-                        ->helperText('Contoh: nama, kamar, periode, total, jatuh_tempo.')
-                        ->columnSpanFull(),
+                        ->label('Nama Sistem')->hidden(),
                     Textarea::make('content')
-                        ->label('Pratinjau Konten')
-                        ->helperText('Gunakan penanda seperti {{nama}}. Pengiriman API tetap memakai templat resmi Meta.')
+                        ->label('Contoh Isi Pesan')
+                        ->helperText('Bagian seperti {{nama}} dan {{total}} akan diisi otomatis ketika pesan dikirim.')
                         ->required()
                         ->rows(5)
                         ->columnSpanFull(),
@@ -81,22 +71,12 @@ class WhatsAppTemplateResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('display_name')->label('Templat')->searchable()->sortable(),
-                TextColumn::make('template_name')->label('Nama Templat Meta')->copyable()->searchable(),
-                TextColumn::make('category')->label('Kategori')->badge()->formatStateUsing(fn (string $state): string => match ($state) {
-                    'utility' => 'Layanan',
-                    'marketing' => 'Pemasaran',
-                    default => $state,
-                }),
-                TextColumn::make('language')->label('Bahasa'),
                 IconColumn::make('is_active')->label('Aktif')->boolean(),
                 TextColumn::make('updated_at')->label('Diperbarui')->since(),
             ])
-            ->filters([
-                SelectFilter::make('category')->label('Kategori')->options(['utility' => 'Layanan', 'marketing' => 'Pemasaran']),
-            ])
+            ->stackedOnMobile()
             ->recordActions([
                 EditAction::make(),
-                DeleteAction::make()->requiresConfirmation(),
             ]);
     }
 
@@ -107,5 +87,10 @@ class WhatsAppTemplateResource extends Resource
             'create' => CreateWhatsAppTemplate::route('/create'),
             'edit' => EditWhatsAppTemplate::route('/{record}/edit'),
         ];
+    }
+
+    public static function canCreate(): bool
+    {
+        return false;
     }
 }

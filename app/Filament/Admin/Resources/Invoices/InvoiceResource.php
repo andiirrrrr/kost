@@ -3,27 +3,24 @@
 namespace App\Filament\Admin\Resources\Invoices;
 
 use App\Enums\InvoiceStatus;
-use App\Enums\PaymentMethod;
 use App\Models\Invoice;
-use App\Models\Room;
+use App\Models\PaymentMethod;
 use App\Models\Tenant;
 use App\Services\InvoiceService;
 use App\Services\PaymentService;
 use BackedEnum;
+use Carbon\Carbon;
 use Closure;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
+use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms;
-use Filament\Navigation\NavigationItem;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
-use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -62,11 +59,17 @@ class InvoiceResource extends Resource
         return $schema
             ->schema([
                 Section::make('Informasi Tagihan')
+                    ->description('Pilih penghuni dan periode tagihan. Kamar serta jatuh tempo mengikuti data sewa aktif.')
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                    ])
                     ->schema([
                         Forms\Components\Select::make('tenant_id')
                             ->label('Penghuni')
                             ->options(Tenant::where('status', 'active')->pluck('name', 'id'))
                             ->required()
+                            ->disabled(fn (?Invoice $record): bool => $record !== null)
                             ->searchable()
                             ->live()
                             ->rules([
@@ -74,7 +77,7 @@ class InvoiceResource extends Resource
                                     $month = (int) ($get('period_month') ?? now()->month);
                                     $year = (int) ($get('period_year') ?? now()->year);
 
-                                    $exists = Invoice::where('tenant_id', $value)
+                                    $exists = Invoice::withTrashed()->where('tenant_id', $value)
                                         ->where('period_month', $month)
                                         ->where('period_year', $year)
                                         ->when($record, fn ($query) => $query->where('id', '!=', $record->id))
@@ -87,41 +90,38 @@ class InvoiceResource extends Resource
                             ])
                             ->afterStateUpdated(function ($state, callable $get, callable $set) {
                                 if ($state) {
-                                    $tenant = Tenant::find($state);
+                                    $tenant = Tenant::with('room.roomCategory')->find($state);
                                     if ($tenant) {
                                         $set('room_id', $tenant->room_id);
-                                        $set('base_amount', (int) $tenant->monthly_price);
+                                        $set('base_amount', InvoiceService::resolveBaseAmount($tenant));
                                         static::calculateTotal($get, $set);
 
                                         $month = (int) ($get('period_month') ?? now()->month);
                                         $year = (int) ($get('period_year') ?? now()->year);
-                                        $dueDay = $tenant->due_day ?? 5;
-                                        $set('due_date', InvoiceService::calculateDueDate($month, $year, $dueDay)->toDateString());
+                                        $set('due_date', InvoiceService::calculateTenantDueDate($tenant, $month, $year)->toDateString());
 
                                         if (! $get('invoice_number')) {
                                             $set('invoice_number', Invoice::generateInvoiceNumber($month, $year));
                                         }
                                     }
                                 }
-                            }),
+                            })
+                            ->columnSpanFull(),
                         Forms\Components\Select::make('room_id')
-                            ->label('Kamar')
-                            ->options(Room::pluck('room_number', 'id'))
-                            ->required()
-                            ->searchable(),
+                            ->label('Kamar')->hidden(),
                         Forms\Components\TextInput::make('invoice_number')
-                            ->label('Nomor Tagihan')
-                            ->required()
-                            ->unique(ignoreRecord: true)
-                            ->maxLength(255),
-                        Grid::make(2)
+                            ->label('Nomor Tagihan')->hidden(),
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 2,
+                        ])
                             ->schema([
-                                Forms\Components\TextInput::make('period_month')
+                                Forms\Components\Select::make('period_month')
                                     ->label('Bulan')
                                     ->required()
-                                    ->numeric()
-                                    ->minValue(1)
-                                    ->maxValue(12)
+                                    ->disabled(fn (?Invoice $record): bool => $record !== null)
+                                    ->options(collect(range(1, 12))->mapWithKeys(fn (int $month): array => [$month => Carbon::create()->month($month)->locale('id')->translatedFormat('F')])->all())
+                                    ->native(false)
                                     ->default(now()->month)
                                     ->live(onBlur: true)
                                     ->afterStateUpdated(function ($state, callable $get, callable $set) {
@@ -130,16 +130,16 @@ class InvoiceResource extends Resource
                                             $tenant = Tenant::find($tenantId);
                                             $month = (int) ($state ?? now()->month);
                                             $year = (int) ($get('period_year') ?? now()->year);
-                                            $dueDay = $tenant?->due_day ?? 5;
-                                            $set('due_date', InvoiceService::calculateDueDate($month, $year, $dueDay)->toDateString());
+                                            $set('due_date', InvoiceService::calculateTenantDueDate($tenant, $month, $year)->toDateString());
                                             $set('invoice_number', Invoice::generateInvoiceNumber($month, $year));
                                         }
                                     }),
-                                Forms\Components\TextInput::make('period_year')
+                                Forms\Components\Select::make('period_year')
                                     ->label('Tahun')
                                     ->required()
-                                    ->numeric()
-                                    ->minValue(2000)
+                                    ->disabled(fn (?Invoice $record): bool => $record !== null)
+                                    ->options(collect(range(now()->year - 1, now()->year + 1))->mapWithKeys(fn (int $year): array => [$year => $year])->all())
+                                    ->native(false)
                                     ->default(now()->year)
                                     ->live(onBlur: true)
                                     ->afterStateUpdated(function ($state, callable $get, callable $set) {
@@ -148,25 +148,28 @@ class InvoiceResource extends Resource
                                             $tenant = Tenant::find($tenantId);
                                             $month = (int) ($get('period_month') ?? now()->month);
                                             $year = (int) ($state ?? now()->year);
-                                            $dueDay = $tenant?->due_day ?? 5;
-                                            $set('due_date', InvoiceService::calculateDueDate($month, $year, $dueDay)->toDateString());
+                                            $set('due_date', InvoiceService::calculateTenantDueDate($tenant, $month, $year)->toDateString());
                                             $set('invoice_number', Invoice::generateInvoiceNumber($month, $year));
                                         }
                                     }),
-                            ]),
+                            ])
+                            ->columnSpanFull(),
                     ]),
 
                 Section::make('Rincian Biaya')
+                    ->description('Isi biaya tambahan atau diskon. Total dihitung otomatis oleh sistem.')
+                    ->columns([
+                        'default' => 1,
+                        'md' => 2,
+                    ])
                     ->schema([
-                        Grid::make(2)
+                        Grid::make([
+                            'default' => 1,
+                            'md' => 2,
+                        ])
                             ->schema([
                                 Forms\Components\TextInput::make('base_amount')
-                                    ->label('Sewa Pokok')
-                                    ->required()
-                                    ->numeric()
-                                    ->prefix('Rp')
-                                    ->live(onBlur: true)
-                                    ->afterStateUpdated(fn ($state, callable $get, callable $set) => static::calculateTotal($get, $set)),
+                                    ->label('Sewa Pokok')->hidden(),
                                 Forms\Components\TextInput::make('electricity_amount')
                                     ->label('Listrik')
                                     ->numeric()
@@ -188,7 +191,8 @@ class InvoiceResource extends Resource
                                     ->prefix('Rp')
                                     ->live(onBlur: true)
                                     ->afterStateUpdated(fn ($state, callable $get, callable $set) => static::calculateTotal($get, $set)),
-                            ]),
+                            ])
+                            ->columnSpanFull(),
                         Forms\Components\TextInput::make('discount_amount')
                             ->label('Diskon')
                             ->numeric()
@@ -197,7 +201,7 @@ class InvoiceResource extends Resource
                             ->live(onBlur: true)
                             ->afterStateUpdated(fn ($state, callable $get, callable $set) => static::calculateTotal($get, $set)),
                         Forms\Components\TextInput::make('total_amount')
-                            ->label('Total')
+                            ->label('Total Otomatis')
                             ->required()
                             ->numeric()
                             ->prefix('Rp')
@@ -205,12 +209,10 @@ class InvoiceResource extends Resource
                             ->dehydrated()
                             ->default(0),
                         Forms\Components\DatePicker::make('due_date')
-                            ->label('Jatuh Tempo')
-                            ->required(),
+                            ->label('Jatuh Tempo Otomatis')
+                            ->readOnly(),
                         Forms\Components\Select::make('status')
-                            ->options(InvoiceStatus::class)
-                            ->required()
-                            ->default(InvoiceStatus::UNPAID),
+                            ->options(InvoiceStatus::class)->hidden(),
                         Forms\Components\Textarea::make('notes')
                             ->label('Catatan')
                             ->columnSpanFull(),
@@ -232,6 +234,7 @@ class InvoiceResource extends Resource
                     ->sortable(),
                 TextColumn::make('room.room_number')
                     ->label('Kamar')
+                    ->visibleFrom('md')
                     ->sortable(),
                 TextColumn::make('period')
                     ->label('Periode')
@@ -239,19 +242,25 @@ class InvoiceResource extends Resource
                 TextColumn::make('total_amount')
                     ->label('Total')
                     ->money('IDR')
+                    ->alignEnd()
                     ->sortable(),
                 TextColumn::make('due_date')
                     ->label('Jatuh Tempo')
                     ->date()
+                    ->visibleFrom('lg')
                     ->sortable(),
-                SelectColumn::make('status')
-                    ->options(InvoiceStatus::class)
+                TextColumn::make('status')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(fn (InvoiceStatus $state): string => $state->label())
+                    ->color(fn (InvoiceStatus $state): string => $state->getColor())
                     ->sortable(),
                 TextColumn::make('created_at')
                     ->label('Dibuat')
                     ->dateTime()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->stackedOnMobile()
             ->filters([
                 SelectFilter::make('status')
                     ->options(InvoiceStatus::class),
@@ -263,67 +272,90 @@ class InvoiceResource extends Resource
                     ->options(array_combine(range(2020, now()->year), range(2020, now()->year))),
             ])
             ->actions([
-                EditAction::make(),
-                Action::make('pay')
-                    ->label('Bayar')
-                    ->icon('heroicon-o-credit-card')
-                    ->color('success')
-                    ->hidden(fn ($record) => ! auth()->user()?->can('recordPayment', $record))
-                    ->requiresConfirmation()
-                    ->modalHeading('Konfirmasi Pembayaran Tagihan')
-                    ->modalDescription(fn ($record) => "Tandai tagihan {$record->invoice_number} ({$record->tenant?->name}) sebesar Rp ".number_format($record->total_amount, 0, ',', '.').' sebagai Lunas?')
-                    ->modalSubmitActionLabel('Ya, Tandai Lunas')
-                    ->form([
-                        Forms\Components\Select::make('payment_method')
-                            ->label('Metode Pembayaran')
-                            ->options(PaymentMethod::class)
-                            ->required(),
-                        Forms\Components\DateTimePicker::make('paid_at')
-                            ->label('Waktu Pembayaran')
-                            ->default(now())
-                            ->required(),
-                        Forms\Components\TextInput::make('payment_note')
-                            ->label('Catatan Pembayaran (Opsional)')
-                            ->placeholder('Contoh: Transfer BCA, Tunai, dsb.'),
-                    ])
-                    ->action(function ($record, array $data) {
-                        Gate::authorize('recordPayment', $record);
+                ActionGroup::make([
+                    Action::make('synchronize')
+                        ->label('Sinkronkan Tagihan')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('info')
+                        ->hidden()
+                        ->requiresConfirmation()
+                        ->modalHeading('Sinkronkan tagihan dengan data terbaru?')
+                        ->modalDescription(function (Invoice $record): string {
+                            $record->loadMissing(['tenant', 'room.roomCategory']);
+                            $newBase = (int) ($record->room?->roomCategory?->base_monthly_price ?? $record->room?->monthly_price ?? $record->base_amount);
+                            $newDueDate = InvoiceService::calculateTenantDueDate($record->tenant, $record->period_month, $record->period_year);
 
-                        $paymentMethod = $data['payment_method'] instanceof PaymentMethod
-                            ? $data['payment_method']
-                            : PaymentMethod::from((string) $data['payment_method']);
+                            return 'Sewa pokok: Rp '.number_format($record->base_amount, 0, ',', '.').' → Rp '.number_format($newBase, 0, ',', '.').'. Jatuh tempo: '.$record->due_date->format('d/m/Y').' → '.$newDueDate->format('d/m/Y').'. Biaya listrik, air, biaya lain, diskon, kamar, dan histori pembayaran tetap dipertahankan.';
+                        })
+                        ->modalSubmitActionLabel('Ya, sinkronkan')
+                        ->action(function (Invoice $record): void {
+                            Gate::authorize('update', $record);
+                            app(InvoiceService::class)->synchronizeInvoice($record);
+                            Notification::make()->title("Tagihan {$record->invoice_number} berhasil disinkronkan")->success()->send();
+                        }),
+                    EditAction::make(),
+                    Action::make('pay')
+                        ->label('Bayar')
+                        ->icon('heroicon-o-credit-card')
+                        ->color('success')
+                        ->hidden(fn ($record) => ! auth()->user()?->can('recordPayment', $record))
+                        ->requiresConfirmation()
+                        ->modalHeading('Konfirmasi Pembayaran Tagihan')
+                        ->modalDescription(fn ($record) => "Tandai tagihan {$record->invoice_number} ({$record->tenant?->name}) sebesar Rp ".number_format($record->total_amount, 0, ',', '.').' sebagai Lunas?')
+                        ->modalSubmitActionLabel('Ya, Tandai Lunas')
+                        ->form([
+                            Forms\Components\Select::make('payment_method_id')
+                                ->label('Metode Pembayaran')
+                                ->options(PaymentMethod::query()->where('is_active', true)->orderBy('sort_order')->pluck('name', 'id'))
+                                ->required(),
+                            Forms\Components\DateTimePicker::make('paid_at')
+                                ->label('Waktu Pembayaran')
+                                ->default(now())
+                                ->required(),
+                            Forms\Components\TextInput::make('payment_note')
+                                ->label('Catatan Pembayaran (Opsional)')
+                                ->placeholder('Contoh: Transfer BCA, Tunai, dsb.'),
+                        ])
+                        ->action(function ($record, array $data) {
+                            Gate::authorize('recordPayment', $record);
 
-                        app(PaymentService::class)->recordVerifiedPayment(
-                            invoice: $record,
-                            paymentMethod: $paymentMethod,
-                            paidAt: $data['paid_at'],
-                            verifiedBy: auth()->id(),
-                            notes: $data['payment_note'] ?? null,
-                        );
+                            $paymentMethod = PaymentMethod::query()->where('is_active', true)->findOrFail($data['payment_method_id']);
 
-                        Notification::make()
-                            ->title("Tagihan {$record->invoice_number} berhasil ditandai Lunas!")
-                            ->success()
-                            ->send();
-                    }),
-                Action::make('cancel')
-                    ->label('Batal')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->requiresConfirmation()
-                    ->hidden(fn ($record) => ! auth()->user()?->can('cancel', $record))
-                    ->action(function ($record) {
-                        Gate::authorize('cancel', $record);
-                        $record->update(['status' => InvoiceStatus::CANCELLED]);
-                        Notification::make()->title('Tagihan dibatalkan')->success()->send();
-                    }),
-                DeleteAction::make(),
+                            app(PaymentService::class)->recordVerifiedPayment(
+                                invoice: $record,
+                                paymentMethod: $paymentMethod,
+                                paidAt: $data['paid_at'],
+                                verifiedBy: auth()->id(),
+                                notes: $data['payment_note'] ?? null,
+                            );
+
+                            Notification::make()
+                                ->title("Tagihan {$record->invoice_number} berhasil ditandai Lunas!")
+                                ->success()
+                                ->send();
+                        }),
+                    Action::make('cancel')
+                        ->label('Batal')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->hidden(fn ($record) => ! auth()->user()?->can('cancel', $record))
+                        ->action(function ($record) {
+                            Gate::authorize('cancel', $record);
+                            $record->update(['status' => InvoiceStatus::CANCELLED]);
+                            Notification::make()->title('Tagihan dibatalkan')->success()->send();
+                        }),
+                    DeleteAction::make()
+                        ->hidden(fn (Invoice $record): bool => $record->payments()->exists())
+                        ->modalDescription('Tagihan tanpa riwayat pembayaran akan dipindahkan ke arsip.'),
+                ])
+                    ->label('Aksi')
+                    ->icon('heroicon-m-ellipsis-vertical')
+                    ->iconButton()
+                    ->tooltip('Aksi')
+                    ->color('gray'),
             ])
-            ->bulkActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+            ->bulkActions([]);
     }
 
     public static function getPages(): array
@@ -339,19 +371,5 @@ class InvoiceResource extends Resource
     public static function getNavigationBadge(): ?string
     {
         return (string) Invoice::where('status', InvoiceStatus::UNPAID)->count();
-    }
-
-    public static function getNavigationItems(): array
-    {
-        $items = parent::getNavigationItems();
-        if (auth()->user()?->can('generate', Invoice::class)) {
-            $items[] = NavigationItem::make('Buat Tagihan Bulanan')
-                ->url(fn (): string => static::getUrl('generate'))
-                ->icon('heroicon-o-plus-circle')
-                ->group(static::getNavigationGroup())
-                ->sort(2);
-        }
-
-        return $items;
     }
 }

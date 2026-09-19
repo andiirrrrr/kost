@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\DB;
 
 class Invoice extends Model
 {
@@ -13,6 +14,7 @@ class Invoice extends Model
 
     protected $fillable = [
         'tenant_id',
+        'tenant_room_history_id',
         'room_id',
         'invoice_number',
         'period_month',
@@ -48,6 +50,11 @@ class Invoice extends Model
         return $this->belongsTo(Tenant::class);
     }
 
+    public function tenantRoomHistory()
+    {
+        return $this->belongsTo(TenantRoomHistory::class);
+    }
+
     public function room()
     {
         return $this->belongsTo(Room::class);
@@ -74,16 +81,19 @@ class Invoice extends Model
         return $query->where('status', InvoiceStatus::OVERDUE);
     }
 
-    // Generate invoice number
-    public static function generateInvoiceNumber($month, $year)
+    // Generate invoice number (concurrency-safe)
+    public static function generateInvoiceNumber($month, $year): string
     {
-        $last = self::withTrashed()
-            ->where('period_month', $month)
-            ->where('period_year', $year)
-            ->orderBy('id', 'desc')
-            ->first();
-        $sequence = $last ? intval(substr($last->invoice_number, -4)) + 1 : 1;
+        return DB::transaction(function () use ($month, $year): string {
+            $last = self::withTrashed()
+                ->where('period_month', $month)
+                ->where('period_year', $year)
+                ->lockForUpdate()
+                ->orderBy('id', 'desc')
+                ->first();
+            $sequence = $last ? intval(substr($last->invoice_number, -4)) + 1 : 1;
 
-        return sprintf('INV-%04d%02d-%04d', $year, $month, $sequence);
+            return sprintf('INV-%04d%02d-%04d', $year, $month, $sequence);
+        });
     }
 }

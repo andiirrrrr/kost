@@ -3,10 +3,10 @@
 namespace App\Services;
 
 use App\Enums\InvoiceStatus;
-use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Models\PaymentMethod;
 use App\Notifications\TenantActivityNotification;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -62,8 +62,16 @@ class PaymentService
                 throw new InvalidArgumentException('Tagihan sudah lunas atau dibatalkan.');
             }
 
+            if ($lockedInvoice->status === InvoiceStatus::PENDING || $lockedInvoice->payments()->where('status', PaymentStatus::PENDING)->exists()) {
+                throw new InvalidArgumentException('Tagihan sedang memiliki pembayaran yang menunggu verifikasi.');
+            }
+
             if ($lockedInvoice->payments()->where('status', PaymentStatus::VERIFIED)->exists()) {
                 throw new InvalidArgumentException('Tagihan sudah memiliki pembayaran terverifikasi.');
+            }
+
+            if (! $paymentMethod->is_active || $paymentMethod->trashed()) {
+                throw new InvalidArgumentException('Metode pembayaran tidak tersedia.');
             }
 
             $payment = Payment::create([
@@ -71,7 +79,8 @@ class PaymentService
                 'tenant_id' => $lockedInvoice->tenant_id,
                 'payment_number' => Payment::generatePaymentNumber(),
                 'amount' => $lockedInvoice->total_amount,
-                'payment_method' => $paymentMethod,
+                'payment_method' => $paymentMethod->code,
+                'payment_method_id' => $paymentMethod->id,
                 'paid_at' => $paidAt,
                 'status' => PaymentStatus::PENDING,
                 'notes' => $notes,
@@ -105,12 +114,17 @@ class PaymentService
                 throw new InvalidArgumentException('Pembayaran untuk tagihan ini sedang menunggu verifikasi.');
             }
 
+            if (! $paymentMethod->is_active || $paymentMethod->trashed()) {
+                throw new InvalidArgumentException('Metode pembayaran tidak tersedia.');
+            }
+
             $payment = Payment::create([
                 'invoice_id' => $lockedInvoice->id,
                 'tenant_id' => $tenantId,
                 'payment_number' => Payment::generatePaymentNumber(),
                 'amount' => $lockedInvoice->total_amount,
-                'payment_method' => $paymentMethod,
+                'payment_method' => $paymentMethod->code,
+                'payment_method_id' => $paymentMethod->id,
                 'paid_at' => $paidAt,
                 'proof' => $proof,
                 'status' => PaymentStatus::PENDING,
@@ -160,7 +174,7 @@ class PaymentService
 
         $this->notifications->notifyTenant(
             $payment->tenant,
-            new TenantActivityNotification('payment_rejected', 'Pembayaran ditolak', trim($reason), route('tenant.payments.index')),
+            new TenantActivityNotification('payment_rejected', 'Pembayaran ditolak', trim($reason), route('tenant.payments.create', $payment->invoice), $payment->invoice_id),
         );
 
         return $rejected;

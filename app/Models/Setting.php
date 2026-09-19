@@ -8,6 +8,11 @@ class Setting extends Model
 {
     protected $fillable = ['key', 'value'];
 
+    protected static function booted(): void
+    {
+        static::saved(fn (Setting $setting) => ActivityLog::record('setting.updated', $setting, ['key' => $setting->key]));
+    }
+
     public static function get(string $key, mixed $default = null): mixed
     {
         try {

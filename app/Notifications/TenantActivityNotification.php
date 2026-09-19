@@ -11,6 +11,7 @@ class TenantActivityNotification extends Notification
         public string $title,
         public string $message,
         public ?string $url = null,
+        public ?int $invoiceId = null,
     ) {}
 
     /** @return list<string> */
@@ -19,7 +20,7 @@ class TenantActivityNotification extends Notification
         return ['database'];
     }
 
-    /** @return array{type: string, title: string, message: string, url: ?string} */
+    /** @return array{type: string, title: string, message: string, url: ?string, invoice_id: ?int} */
     public function toArray(object $notifiable): array
     {
         return [
@@ -27,6 +28,7 @@ class TenantActivityNotification extends Notification
             'title' => $this->title,
             'message' => $this->message,
             'url' => $this->url,
+            'invoice_id' => $this->invoiceId,
         ];
     }
 }

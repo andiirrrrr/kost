@@ -1,8 +1,4 @@
 <main class="relative flex min-h-screen items-center justify-center overflow-hidden px-6 py-10">
-    <a href="{{ route('home') }}" class="fixed left-6 top-6 z-10 flex items-center gap-1.5 rounded-lg border border-[#c5c6cf]/50 bg-white/80 px-3 py-1.5 text-xs font-semibold text-[#44474e] shadow-xs backdrop-blur transition hover:border-[#031636]/30 hover:bg-white hover:text-[#031636] sm:left-8 sm:top-8 sm:px-3.5 sm:py-2 sm:text-sm">
-        <span class="material-symbols-outlined text-lg">arrow_back</span>
-        <span>Kembali ke Beranda</span>
-    </a>
 
     <div class="pointer-events-none absolute -left-32 -top-32 size-96 rounded-full bg-[#031636]/5"></div>
     <div class="pointer-events-none absolute -bottom-48 -right-40 size-[30rem] rotate-45 rounded-[6rem] bg-[#e9c176]/10"></div>
@@ -53,6 +49,11 @@
                     <button type="submit" class="mt-1 flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#031636] text-sm font-semibold text-white shadow-sm transition hover:bg-[#1a2b4c] focus:outline-none focus:ring-4 focus:ring-[#031636]/20">
                         Masuk <span class="material-symbols-outlined text-lg">arrow_forward</span>
                     </button>
+
+                    <a href="{{ route('home') }}" class="mt-1 flex items-center justify-center gap-1.5 py-1 text-xs font-semibold text-[#75777f] transition hover:text-[#031636] sm:text-sm">
+                        <span class="material-symbols-outlined text-base">arrow_back</span>
+                        <span>Kembali ke Beranda</span>
+                    </a>
                 </form>
             </div>
 

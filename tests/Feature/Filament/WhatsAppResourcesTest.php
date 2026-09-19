@@ -19,7 +19,7 @@ class WhatsAppResourcesTest extends TestCase
         $admin = User::where('email', 'admin@kost.test')->sole();
 
         $this->actingAs($admin)->get(WhatsAppTemplateResource::getUrl('index'))->assertOk();
-        $this->actingAs($admin)->get(WhatsAppTemplateResource::getUrl('create'))->assertOk();
+        $this->actingAs($admin)->get(WhatsAppTemplateResource::getUrl('create'))->assertForbidden();
         $this->actingAs($admin)->get(WhatsAppLogResource::getUrl('index'))->assertOk();
     }
 

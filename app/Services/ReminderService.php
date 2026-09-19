@@ -41,7 +41,7 @@ class ReminderService
                 ->with(['tenant.room:id,room_number'])
                 ->whereDate('due_date', $rule['due_date'])
                 ->whereIn('status', $rule['statuses'])
-                ->whereHas('tenant', fn ($query) => $query->where('status', 'active'))
+                ->whereHas('tenant', fn ($query) => $query->where('status', 'active')->whereNull('move_out_date')->whereDate('move_in_date', '<=', $date))
                 ->get();
 
             foreach ($invoices as $invoice) {

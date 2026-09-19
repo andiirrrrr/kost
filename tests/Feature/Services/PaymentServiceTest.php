@@ -3,10 +3,10 @@
 namespace Tests\Feature\Services;
 
 use App\Enums\InvoiceStatus;
-use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Models\Invoice;
 use App\Models\Payment;
+use App\Models\PaymentMethod;
 use App\Models\User;
 use App\Services\PaymentService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -58,10 +58,12 @@ class PaymentServiceTest extends TestCase
     {
         $verifier = User::factory()->create();
         $invoice = Invoice::factory()->create();
+        $paymentMethod = PaymentMethod::query()->where('code', 'cash')->firstOrFail();
+        $paymentMethod->update(['is_active' => true]);
 
         $payment = app(PaymentService::class)->recordVerifiedPayment(
             $invoice,
-            PaymentMethod::CASH,
+            $paymentMethod,
             '2026-08-30 10:00:00',
             $verifier->id,
             'Diterima di kantor',
@@ -101,12 +103,13 @@ class PaymentServiceTest extends TestCase
             'amount' => $invoice->total_amount,
         ]);
         $service = app(PaymentService::class);
+        $paymentMethod = PaymentMethod::query()->where('code', 'bank_transfer')->firstOrFail();
 
         $service->rejectPayment($payment, 'Bukti transfer tidak terbaca.');
         $resubmission = $service->submitTenantPayment(
             $invoice->refresh(),
             $invoice->tenant_id,
-            PaymentMethod::BANK_TRANSFER,
+            $paymentMethod,
             now(),
             'payments/proofs/retry.jpg',
         );
@@ -116,5 +119,16 @@ class PaymentServiceTest extends TestCase
         $this->assertSame(PaymentStatus::PENDING, $resubmission->status);
         $this->assertSame(InvoiceStatus::PENDING, $invoice->refresh()->status);
         $this->assertSame(2, $invoice->payments()->count());
+    }
+
+    public function test_quick_payment_rejects_invoice_with_pending_submission(): void
+    {
+        $invoice = Invoice::factory()->create(['status' => InvoiceStatus::PENDING]);
+        Payment::factory()->for($invoice)->create(['tenant_id' => $invoice->tenant_id, 'amount' => $invoice->total_amount]);
+        $paymentMethod = PaymentMethod::query()->where('code', 'bank_transfer')->firstOrFail();
+
+        $this->expectException(InvalidArgumentException::class);
+
+        app(PaymentService::class)->recordVerifiedPayment($invoice, $paymentMethod, now(), User::factory()->create()->id);
     }
 }

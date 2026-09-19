@@ -40,7 +40,15 @@ class AdminAccessTest extends TestCase
         $this->seed(DatabaseSeeder::class);
         $admin = User::where('email', 'admin@kost.test')->sole();
 
-        $this->actingAs($admin)->get('/admin')->assertOk();
+        $this->actingAs($admin)->get('/admin')
+            ->assertOk()
+            ->assertSee('Ringkasan operasional dan keuangan kost bulan ini.')
+            ->assertSee('Pemasukan Bulan Ini')
+            ->assertSee('Aktivitas Terbaru')
+            ->assertSee('Operasional')
+            ->assertSee('Nilai tagihan bulan ini')
+            ->assertDontSee('Kontrak & Deposit')
+            ->assertDontSee('Buat Tagihan Bulanan');
     }
 
     public function test_public_user_cannot_open_admin_panel(): void
