@@ -47,8 +47,11 @@ class RoomCategoryForm
                             ->disk('public')
                             ->directory('landing/room-categories')
                             ->visibility('public')
-                            ->helperText('Foto ini mewakili seluruh kamar dalam kategori.')
-                            ->columnSpanFull(),
+                            ->helperText('Foto ini mewakili seluruh kamar dalam kategori. Format: JPG, PNG, WebP. Max 4MB.')
+                            ->columnSpanFull()
+                            ->imageEditor()
+                            ->downloadable()
+                            ->openable(),
                         TagsInput::make('facilities')
                             ->label('Fasilitas yang Didapatkan')
                             ->placeholder('Contoh: AC')
